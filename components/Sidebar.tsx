@@ -13,6 +13,7 @@ import {
   Images,
   Inbox,
   Briefcase,
+  Trophy,
   X,
   ChevronsLeft,
   ChevronsRight,
@@ -67,6 +68,7 @@ const ALL_MENU_ITEMS = [
   { href: "/media", icon: Images, label: "Media", roles: ["admin", "media", "events"] },
   { href: "/submissions", icon: Inbox, label: "Submissions", roles: ["admin"] },
   { href: "/sponsors", icon: Briefcase, label: "Sponsors", roles: ["admin"] },
+  { href: "/leaderboard", icon: Trophy, label: "Leaderboard", roles: ["admin"] },
 ];
 
 interface SidebarProps {

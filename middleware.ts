@@ -43,7 +43,7 @@ function isPageAllowedForRole(pathname: string, role: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Static assets & Next.js internals — skip
+  // Static assets & Next.js internals - skip
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
@@ -52,12 +52,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Public pages — allow without auth
+  // Public pages - allow without auth
   if (PUBLIC_PAGES.has(pathname)) {
     return NextResponse.next();
   }
 
-  // Public API endpoints — allow without auth
+  // Public API endpoints - allow without auth
   if (PUBLIC_API.has(pathname)) {
     return NextResponse.next();
   }
@@ -78,7 +78,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Role-based page access — only enforce on non-API page routes
+  // Role-based page access - only enforce on non-API page routes
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/dev")) {
     if (!isPageAllowedForRole(pathname, session.role)) {
       // Redirect unauthorised roles back to overview
