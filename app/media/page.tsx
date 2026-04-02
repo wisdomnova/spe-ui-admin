@@ -83,8 +83,10 @@ export default function MediaLibraryPage() {
         fd.append("file_group", selectedGroup === "All" ? "General" : selectedGroup);
         const res = await fetch("/api/media", { method: "POST", body: fd });
         if (res.ok) {
-          const newFile = await res.json();
-          setFiles(prev => [{ ...newFile, tags: newFile.tags || [], file_group: newFile.file_group || "General" }, ...prev]);
+          const data = await res.json();
+          // API returns an array; take first item if array, otherwise use as-is
+          const newFile = Array.isArray(data) ? data[0] : data;
+          if (newFile) setFiles(prev => [{ ...newFile, tags: newFile.tags || [], file_group: newFile.file_group || "General" }, ...prev]);
         }
       }
     } catch {} finally { setIsUploading(false); e.target.value = ""; }

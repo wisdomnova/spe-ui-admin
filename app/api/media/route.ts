@@ -33,8 +33,12 @@ export async function POST(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const formData = await req.formData();
-    const files = formData.getAll("files") as File[];
-    const group = (formData.get("group") as string) || "All";
+    // Support both "file" (single) and "files" (multi) field names
+    const files = [
+      ...formData.getAll("file") as File[],
+      ...formData.getAll("files") as File[],
+    ].filter(f => f instanceof File);
+    const group = (formData.get("group") as string) || (formData.get("file_group") as string) || "All";
     const tagsRaw = formData.get("tags") as string;
     const tags = tagsRaw ? JSON.parse(tagsRaw) : [];
 
