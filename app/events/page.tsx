@@ -42,6 +42,7 @@ export default function EventsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     title: "",
@@ -50,9 +51,14 @@ export default function EventsPage() {
     location: "",
     image_url: "",
     youtube_url: "",
-    status: "Draft",
+    status: "Upcoming" as "Upcoming" | "Draft" | "Completed",
     description: ""
   });
+
+  const resetForm = () => {
+    setFormData({ title: "", date: "", time: "", location: "", image_url: "", youtube_url: "", status: "Upcoming", description: "" });
+    setEditingId(null);
+  };
 
   useEffect(() => {
     fetchEvents();
@@ -83,9 +89,42 @@ export default function EventsPage() {
         const newEvent = await res.json();
         setEvents([newEvent, ...events]);
         setShowCreateModal(false);
-        setFormData({ title: "", date: "", time: "", location: "", image_url: "", youtube_url: "", status: "Draft", description: "" });
+        resetForm();
       }
     } catch {} finally { setSubmitting(false); }
+  };
+
+  const handleEditEvent = async () => {
+    if (!editingId || !formData.title || !formData.date) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/events/${editingId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setEvents(events.map(e => e.id === editingId ? updated : e));
+        setShowCreateModal(false);
+        resetForm();
+      }
+    } catch {} finally { setSubmitting(false); }
+  };
+
+  const openEditModal = (event: Event) => {
+    setFormData({
+      title: event.title,
+      date: event.date,
+      time: event.time || "",
+      location: event.location || "",
+      image_url: event.image_url || "",
+      youtube_url: event.youtube_url || "",
+      status: event.status,
+      description: event.description || "",
+    });
+    setEditingId(event.id);
+    setShowCreateModal(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -201,11 +240,11 @@ export default function EventsPage() {
                   </div>
 
                   <div className="flex items-center justify-between pt-6 mt-6 border-t border-gray-50">
-                    <button className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
+                    <button onClick={() => openEditModal(event)} className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
                       Edit Event <ChevronRight size={14} />
                     </button>
                     <div className="flex gap-2">
-                      <button className="p-3 text-gray-300 hover:text-blue-600 transition-colors bg-gray-50 rounded-xl"><Edit2 size={14} /></button>
+                      <button onClick={() => openEditModal(event)} className="p-3 text-gray-300 hover:text-blue-600 transition-colors bg-gray-50 rounded-xl"><Edit2 size={14} /></button>
                       <button onClick={() => handleDelete(event.id)} className="p-3 text-gray-300 hover:text-red-600 transition-colors bg-gray-50 rounded-xl"><Trash2 size={14} /></button>
                     </div>
                   </div>
@@ -225,7 +264,7 @@ export default function EventsPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => { setShowCreateModal(false); resetForm(); }}
               className="absolute inset-0 bg-blue-950/40 backdrop-blur-md"
             />
             <motion.div 
@@ -236,10 +275,10 @@ export default function EventsPage() {
             >
               <div className="p-6 sm:p-10 border-b border-gray-50 flex items-center justify-between bg-white sticky top-0 z-10 transition-colors">
                 <div>
-                  <h2 className="text-2xl font-black text-gray-950">Draft New Event</h2>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Set the stage for your next session</p>
+                  <h2 className="text-2xl font-black text-gray-950">{editingId ? 'Edit Event' : 'Create New Event'}</h2>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">{editingId ? 'Update event details' : 'Set the stage for your next session'}</p>
                 </div>
-                <button onClick={() => setShowCreateModal(false)} className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-950 transition-colors"><X size={20} /></button>
+                <button onClick={() => { setShowCreateModal(false); resetForm(); }} className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-950 transition-colors"><X size={20} /></button>
               </div>
 
               <div className="p-6 sm:p-10 overflow-y-auto space-y-8 scrollbar-hide">
@@ -310,6 +349,28 @@ export default function EventsPage() {
                 </div>
 
                 <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Status</label>
+                  <div className="flex gap-3">
+                    {(["Upcoming", "Draft", "Completed"] as const).map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setFormData({...formData, status: s})}
+                        className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          formData.status === s
+                            ? s === 'Upcoming' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
+                            : s === 'Draft' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                            : 'bg-gray-700 text-white shadow-lg shadow-gray-500/20'
+                          : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Short Description</label>
                   <textarea 
                     rows={4} 
@@ -323,11 +384,11 @@ export default function EventsPage() {
 
               <div className="p-10 border-t border-gray-50 bg-white sticky bottom-0">
                 <button 
-                  onClick={handleCreateEvent}
+                  onClick={editingId ? handleEditEvent : handleCreateEvent}
                   disabled={submitting}
                   className="w-full bg-gray-950 text-white py-5 rounded-[2rem] font-black text-xs uppercase tracking-[0.2em] shadow-2xl transition-all hover:bg-gray-800 flex items-center justify-center gap-3 disabled:opacity-50"
                 >
-                  {submitting ? 'Creating...' : 'Confirm & Broadcast Event'}
+                  {submitting ? (editingId ? 'Updating...' : 'Creating...') : (editingId ? 'Save Changes' : 'Confirm & Broadcast Event')}
                   {!submitting && <Check size={16} />}
                 </button>
               </div>
