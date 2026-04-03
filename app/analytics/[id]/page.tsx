@@ -13,12 +13,14 @@ import {
   Calendar,
   Loader2,
   ThumbsUp,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 interface AnalyticsData {
   totalViews: number;
+  uniqueViews: number;
   totalLikes: number;
   dailyViews: { date: string; views: number }[];
   devices: { device: string; count: number }[];
@@ -162,7 +164,7 @@ export default function BlogAnalyticsPage() {
         ) : (
           <>
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
               <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex items-center gap-6">
                 <div className="p-4 bg-blue-50 rounded-2xl text-blue-600">
                   <Eye size={28} />
@@ -172,6 +174,22 @@ export default function BlogAnalyticsPage() {
                     Total Views ({PERIODS.find((p) => p.value === period)?.label})
                   </p>
                   <p className="text-4xl font-black text-gray-900">{data.totalViews.toLocaleString()}</p>
+                  <p className="text-xs font-bold text-gray-400 mt-1">
+                    {data.uniqueViews.toLocaleString()} unique visitor{data.uniqueViews !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex items-center gap-6">
+                <div className="p-4 bg-purple-50 rounded-2xl text-purple-600">
+                  <Users size={28} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
+                    Revisit Rate
+                  </p>
+                  <p className="text-4xl font-black text-gray-900">
+                    {data.uniqueViews > 0 ? Math.round(((data.totalViews - data.uniqueViews) / data.totalViews) * 100) : 0}%
+                  </p>
                 </div>
               </div>
               <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex items-center gap-6">
