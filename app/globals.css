@@ -33,3 +33,19 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* ── TipTap editor paragraph spacing ── */
+.ProseMirror p {
+  margin-bottom: 1.15em;
+}
+.ProseMirror p:empty::before,
+.ProseMirror p:has(> br:only-child)::before {
+  content: "\00a0";       /* non-breaking space */
+  display: block;
+  min-height: 1.5em;
+}
+
+/* ── Image caption in editor ── */
+.resizable-image-wrapper input[type="text"] {
+  font-family: inherit;
+}

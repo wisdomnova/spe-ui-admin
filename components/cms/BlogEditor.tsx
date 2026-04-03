@@ -115,6 +115,7 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
         },
       }),
       ResizableImage.configure({
+        allowBase64: true,
         HTMLAttributes: {
           class: "rounded-xl max-w-full mx-auto my-6",
         },
@@ -136,10 +137,15 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
     },
   });
 
-  // Update editor content when prop changes (edit mode loads content async)
+  // Keeps editor in sync when content changes externally
+  // (edit-mode fetch, draft restore, etc.)
+  const lastExternalContent = useRef(content);
   useEffect(() => {
-    if (editor && content && editor.getHTML() !== content) {
-      editor.commands.setContent(content);
+    if (!editor) return;
+    if (content && content !== lastExternalContent.current) {
+      lastExternalContent.current = content;
+      // emitUpdate = false → avoids triggering onChange → infinite loop
+      editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [content, editor]);
 
