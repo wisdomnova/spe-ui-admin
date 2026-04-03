@@ -17,6 +17,7 @@ import {
   X,
   ChevronsLeft,
   ChevronsRight,
+  BarChart3,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LogoutButton from "./LogoutButton";
@@ -63,6 +64,7 @@ const ALL_MENU_ITEMS = [
   { href: "/", icon: LayoutDashboard, label: "Overview", roles: ["admin", "media", "events"] },
   { href: "/events", icon: Calendar, label: "Events", roles: ["admin", "events"] },
   { href: "/blogs", icon: FileText, label: "Blogs", roles: ["admin", "media"] },
+  { href: "/analytics", icon: BarChart3, label: "Analytics", roles: ["admin", "media"] },
   { href: "/spotlight", icon: UserCircle2, label: "Spotlight", roles: ["admin"] },
   { href: "/team", icon: Users, label: "Team", roles: ["admin"] },
   { href: "/media", icon: Images, label: "Media", roles: ["admin", "media", "events"] },

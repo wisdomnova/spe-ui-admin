@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, Filter, Edit2, Copy, Trash2, Eye, Loader2, Check, Link2, FileText } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Copy, Trash2, Eye, Loader2, Check, Link2, FileText, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
 interface Blog {
@@ -24,10 +24,22 @@ export default function BlogsPage() {
   const [statusFilter, setStatusFilter] = useState<"All" | "Published" | "Draft">("All");
   const [showFilters, setShowFilters] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchBlogs();
+    fetchViewCounts();
   }, []);
+
+  const fetchViewCounts = async () => {
+    try {
+      const res = await fetch("/api/analytics?period=all");
+      if (res.ok) {
+        const data = await res.json();
+        setViewCounts(data.blogViewCounts || {});
+      }
+    } catch {}
+  };
 
   const fetchBlogs = async () => {
     try {
@@ -174,6 +186,10 @@ export default function BlogsPage() {
                   <span className="flex items-center gap-2">{blog.author}</span>
                   <span className="flex items-center gap-2">{formatDate(blog.created_at)}</span>
                   <span className="flex items-center gap-2 text-blue-500/50">{blog.read_time}</span>
+                  <span className="flex items-center gap-1.5 text-green-600">
+                    <Eye size={12} />
+                    {(viewCounts[blog.id] || 0).toLocaleString()} view{viewCounts[blog.id] !== 1 ? "s" : ""}
+                  </span>
                 </div>
 
                 {blog.tags && blog.tags.length > 0 && (
@@ -188,6 +204,9 @@ export default function BlogsPage() {
               </div>
 
               <div className="flex items-center gap-3 md:border-l md:border-gray-50 md:pl-8">
+                <Link href={`/analytics/${blog.id}`} className="p-4 text-gray-300 hover:text-green-600 hover:bg-green-50 transition-all rounded-2xl" title="Analytics">
+                  <BarChart3 size={20} />
+                </Link>
                 <Link href={`/blogs/new?edit=${blog.id}`} className="p-4 text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-2xl" title="Edit">
                   <Edit2 size={20} />
                 </Link>
