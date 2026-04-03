@@ -134,6 +134,18 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
         class:
           "prose prose-lg focus:outline-none max-w-none min-h-[400px] text-gray-800 leading-relaxed [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-4 [&_h1]:mt-6 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mb-2 [&_h3]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-gray-500 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1",
       },
+      handleKeyDown: (view, event) => {
+        // Tab key → insert a tab-width space instead of moving focus
+        if (event.key === "Tab" && !event.shiftKey) {
+          event.preventDefault();
+          const { state, dispatch } = view;
+          const { tr } = state;
+          // Insert 4 non-breaking spaces as a "tab"
+          dispatch(tr.insertText("\u00A0\u00A0\u00A0\u00A0"));
+          return true;
+        }
+        return false;
+      },
     },
   });
 

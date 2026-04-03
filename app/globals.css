@@ -36,13 +36,28 @@ body {
 
 /* ── TipTap editor paragraph spacing ── */
 .ProseMirror p {
-  margin-bottom: 1.15em;
-}
-.ProseMirror p:empty::before,
-.ProseMirror p:has(> br:only-child)::before {
-  content: "\00a0";       /* non-breaking space */
-  display: block;
+  margin-top: 0 !important;
+  margin-bottom: 1.25em !important;
   min-height: 1.5em;
+}
+
+/* Visible gap between consecutive paragraphs */
+.ProseMirror p + p {
+  margin-top: 0.15em !important;
+}
+
+/* Keep empty paragraphs visible (Enter creates <p><br></p>) */
+.ProseMirror p br.ProseMirror-trailingBreak:only-child {
+  display: inline;
+}
+.ProseMirror p:empty {
+  min-height: 1.5em !important;
+}
+
+/* Tab indentation */
+.ProseMirror .tab-indent {
+  display: inline-block;
+  width: 2em;
 }
 
 /* ── Image caption in editor ── */
