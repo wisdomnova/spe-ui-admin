@@ -31,7 +31,8 @@ interface Event {
   location: string;
   image_url: string | null;
   youtube_url?: string | null;
-  status: "Upcoming" | "Draft" | "Completed";
+  event_link?: string | null;
+  status: "Upcoming" | "Ongoing" | "Draft" | "Completed";
   description: string;
 }
 
@@ -51,12 +52,13 @@ export default function EventsPage() {
     location: "",
     image_url: "",
     youtube_url: "",
-    status: "Upcoming" as "Upcoming" | "Draft" | "Completed",
+    event_link: "",
+    status: "Upcoming" as "Upcoming" | "Ongoing" | "Draft" | "Completed",
     description: ""
   });
 
   const resetForm = () => {
-    setFormData({ title: "", date: "", time: "", location: "", image_url: "", youtube_url: "", status: "Upcoming", description: "" });
+    setFormData({ title: "", date: "", time: "", location: "", image_url: "", youtube_url: "", event_link: "", status: "Upcoming", description: "" });
     setEditingId(null);
   };
 
@@ -120,6 +122,7 @@ export default function EventsPage() {
       location: event.location || "",
       image_url: event.image_url || "",
       youtube_url: event.youtube_url || "",
+      event_link: event.event_link || "",
       status: event.status,
       description: event.description || "",
     });
@@ -210,6 +213,7 @@ export default function EventsPage() {
                   <div className="absolute top-6 left-6">
                     <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg ${
                       event.status === "Upcoming" ? "bg-green-500 text-white" :
+                      event.status === "Ongoing" ? "bg-blue-500 text-white" :
                       event.status === "Draft" ? "bg-orange-500 text-white" : "bg-gray-500 text-white"
                     }`}>
                       {event.status}
@@ -234,6 +238,12 @@ export default function EventsPage() {
                         <div className="flex items-center gap-3 text-red-500 font-bold text-xs uppercase tracking-wider">
                           <Youtube size={14} />
                           YouTube Link Added
+                        </div>
+                      )}
+                      {event.event_link && (
+                        <div className="flex items-center gap-3 text-blue-500 font-bold text-xs uppercase tracking-wider">
+                          <LinkIcon size={14} />
+                          Event Link
                         </div>
                       )}
                     </div>
@@ -326,6 +336,20 @@ export default function EventsPage() {
                   </div>
                 </div>
 
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Event Link (Optional)</label>
+                  <div className="relative">
+                    <LinkIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-blue-400" size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="https://... (registration / event page)" 
+                      className="w-full bg-gray-50 border-none rounded-2xl pl-14 pr-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/10 placeholder-gray-300 outline-none"
+                      value={formData.event_link}
+                      onChange={e => setFormData({...formData, event_link: e.target.value})}
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Date</label>
@@ -350,15 +374,16 @@ export default function EventsPage() {
 
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Status</label>
-                  <div className="flex gap-3">
-                    {(["Upcoming", "Draft", "Completed"] as const).map(s => (
+                  <div className="flex flex-wrap gap-3">
+                    {(["Upcoming", "Ongoing", "Draft", "Completed"] as const).map(s => (
                       <button
                         key={s}
                         type="button"
                         onClick={() => setFormData({...formData, status: s})}
-                        className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                        className={`flex-1 min-w-[80px] py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
                           formData.status === s
                             ? s === 'Upcoming' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
+                            : s === 'Ongoing' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
                             : s === 'Draft' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
                             : 'bg-gray-700 text-white shadow-lg shadow-gray-500/20'
                           : 'bg-gray-50 text-gray-400 hover:bg-gray-100'

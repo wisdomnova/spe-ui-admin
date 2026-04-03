@@ -15,8 +15,10 @@ import {
   Twitter as TwitterIcon,
   Image as ImageIcon,
   MoreVertical,
-  Loader2
+  Loader2,
+  Upload
 } from "lucide-react";
+import MediaPickerModal from "@/components/cms/MediaPickerModal";
 
 interface TeamMember {
   id: string;
@@ -35,6 +37,7 @@ export default function TeamPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -192,8 +195,29 @@ export default function TeamPage() {
                   <input type="email" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="email@speui.org" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Image URL</label>
-                  <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="https://..." value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} />
+                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Member Image</label>
+                  {formData.image_url ? (
+                    <div className="relative group w-full h-40 rounded-2xl overflow-hidden border border-gray-100 mb-3">
+                      <img src={formData.image_url} alt="Preview" className="w-full h-full object-cover" />
+                      <button onClick={() => setFormData({...formData, image_url: ""})} className="absolute top-2 right-2 bg-white/90 backdrop-blur rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow"><X size={14} className="text-red-500" /></button>
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowMediaPicker(true)} className="flex-1 flex items-center justify-center gap-2 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-blue-600 hover:bg-blue-100 transition-colors">
+                      <ImageIcon size={14} />
+                      Pick from Library
+                    </button>
+                    <button type="button" onClick={() => {
+                      const url = prompt('Paste image URL (Google Drive, etc.)');
+                      if (url) setFormData({...formData, image_url: url});
+                    }} className="flex-1 flex items-center justify-center gap-2 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100 transition-colors">
+                      <Upload size={14} />
+                      Paste URL
+                    </button>
+                  </div>
+                  {formData.image_url && (
+                    <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm mt-2 text-xs text-gray-400" value={formData.image_url} readOnly />
+                  )}
                 </div>
                 <button onClick={handleAdd} disabled={submitting} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Member'}</button>
               </div>
@@ -201,6 +225,15 @@ export default function TeamPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={(file: any) => {
+          setFormData({...formData, image_url: file.url});
+          setShowMediaPicker(false);
+        }}
+      />
     </div>
   );
 }

@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
         location: body.location || "",
         image_url: body.image_url || null,
         youtube_url: body.youtube_url || null,
+        event_link: body.event_link || null,
         status: body.status || "Draft",
         description: body.description || "",
       })
