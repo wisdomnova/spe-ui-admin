@@ -44,6 +44,18 @@ body {
   min-height: 1.5em;
 }
 
+/* ── Centre images in preview prose ── */
+.prose img {
+  margin-left: auto;
+  margin-right: auto;
+  display: block;
+}
+.prose figure {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
 /* ── Image caption in editor ── */
 .resizable-image-wrapper input[type="text"] {
   font-family: inherit;
