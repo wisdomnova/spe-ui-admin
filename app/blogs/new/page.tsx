@@ -119,28 +119,10 @@ function NewBlogPageContent() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasMounted = useRef(false);
 
-  // ── Restore draft on mount (only for new posts, not edits) ──
+  // ── New post: clear any stale draft so we always start fresh ──
   useEffect(() => {
-    if (searchParams.get('edit')) return; // Skip draft restore in edit mode
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft: DraftData = JSON.parse(raw);
-        if (draft.title || draft.content) {
-          setTitle(draft.title || '');
-          setContent(draft.content || '');
-          setSlug(draft.slug || '');
-          setCategory(draft.category || 'News');
-          setDescription(draft.description || '');
-          setSlugImage(draft.slugImage || null);
-          setAuthorName(draft.authorName || '');
-          setAuthorImageUrl(draft.authorImageUrl || null);
-          setAuthorRole(draft.authorRole || '');
-          setTags(draft.tags || []);
-          setLastSaved(draft.savedAt || null);
-        }
-      }
-    } catch {}
+    if (searchParams.get('edit')) { hasMounted.current = true; return; }
+    localStorage.removeItem(DRAFT_KEY);
     hasMounted.current = true;
   }, [searchParams]);
 
