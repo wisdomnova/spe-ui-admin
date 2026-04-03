@@ -142,7 +142,7 @@ export default function AnalyticsPage() {
         ) : (
           <>
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
               <StatCard
                 label="Total Views"
                 value={data.totalViews.toLocaleString()}
@@ -150,10 +150,26 @@ export default function AnalyticsPage() {
                 color="blue"
               />
               <StatCard
+                label="Unique Visitors"
+                value={data.uniqueViews.toLocaleString()}
+                icon={<Users size={20} />}
+                color="purple"
+              />
+              <StatCard
+                label="Revisit Rate"
+                value={
+                  data.totalViews > 0
+                    ? `${Math.round(((data.totalViews - data.uniqueViews) / data.totalViews) * 100)}%`
+                    : "0%"
+                }
+                icon={<TrendingUp size={20} />}
+                color="green"
+              />
+              <StatCard
                 label="Total Likes"
                 value={data.totalLikes.toLocaleString()}
                 icon={<ThumbsUp size={20} />}
-                color="green"
+                color="orange"
               />
               <StatCard
                 label="Top Device"
@@ -173,7 +189,7 @@ export default function AnalyticsPage() {
                     : "Direct"
                 }
                 icon={<Globe size={20} />}
-                color="orange"
+                color="blue"
               />
             </div>
 
