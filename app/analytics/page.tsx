@@ -13,15 +13,17 @@ import {
   Calendar,
   Loader2,
   ArrowUpRight,
+  ThumbsUp,
 } from "lucide-react";
 import Link from "next/link";
 
 interface AnalyticsData {
   totalViews: number;
+  totalLikes: number;
   dailyViews: { date: string; views: number }[];
   devices: { device: string; count: number }[];
   referrers: { source: string; count: number }[];
-  topBlogs: { blog_id: string; slug: string; title: string; views: number }[];
+  topBlogs: { blog_id: string; slug: string; title: string; views: number; likes: number }[];
   period: string;
 }
 
@@ -93,7 +95,6 @@ export default function AnalyticsPage() {
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <BarChart3 size={28} className="text-blue-600" />
               <h2 className="text-4xl font-black text-gray-900 tracking-tight">Analytics</h2>
             </div>
             <p className="text-gray-500 font-medium">Track blog performance and audience insights.</p>
@@ -136,9 +137,9 @@ export default function AnalyticsPage() {
                 color="blue"
               />
               <StatCard
-                label="Blogs Tracked"
-                value={String(data.topBlogs.length)}
-                icon={<TrendingUp size={20} />}
+                label="Total Likes"
+                value={data.totalLikes.toLocaleString()}
+                icon={<ThumbsUp size={20} />}
                 color="green"
               />
               <StatCard
@@ -323,9 +324,14 @@ export default function AnalyticsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-lg font-black text-gray-900">
+                      <div className="flex items-center gap-6">
+                        <span className="flex items-center gap-1.5 text-sm font-black text-blue-600" title="Views">
+                          <Eye size={14} />
                           {blog.views.toLocaleString()}
+                        </span>
+                        <span className="flex items-center gap-1.5 text-sm font-black text-pink-500" title="Likes">
+                          <ThumbsUp size={14} />
+                          {blog.likes.toLocaleString()}
                         </span>
                         <Link
                           href={`/analytics/${blog.blog_id}`}

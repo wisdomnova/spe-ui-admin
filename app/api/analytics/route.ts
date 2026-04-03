@@ -125,13 +125,36 @@ export async function GET(req: NextRequest) {
       blogViewCounts[id] = count;
     });
 
+    // ── Likes ──
+    let totalLikesQuery = supabase.from("blog_likes").select("id", { count: "exact", head: true });
+    if (blogId) totalLikesQuery = totalLikesQuery.eq("blog_id", blogId);
+    const { count: totalLikes } = await totalLikesQuery;
+
+    // Per-blog like counts
+    let likesQuery = supabase.from("blog_likes").select("blog_id");
+    if (blogId) likesQuery = likesQuery.eq("blog_id", blogId);
+    const { data: likesRaw } = await likesQuery;
+
+    const blogLikeCounts: Record<string, number> = {};
+    (likesRaw || []).forEach((row: { blog_id: string }) => {
+      blogLikeCounts[row.blog_id] = (blogLikeCounts[row.blog_id] || 0) + 1;
+    });
+
+    // Attach likes to topBlogs
+    const topBlogsWithLikes = topBlogs.map((b) => ({
+      ...b,
+      likes: blogLikeCounts[b.blog_id] || 0,
+    }));
+
     return NextResponse.json({
       totalViews: totalViews || 0,
+      totalLikes: totalLikes || 0,
       dailyViews,
       devices,
       referrers,
-      topBlogs,
+      topBlogs: topBlogsWithLikes,
       blogViewCounts,
+      blogLikeCounts,
       period,
     });
   } catch (e) {
