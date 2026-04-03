@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, Filter, Edit2, Copy, Trash2, Eye, Loader2, Check, Link2, FileText, BarChart3 } from "lucide-react";
+import { Plus, Search, Filter, Edit2, Copy, Trash2, Eye, Loader2, Check, Link2, FileText, BarChart3, ThumbsUp } from "lucide-react";
 import Link from "next/link";
 
 interface Blog {
@@ -25,6 +25,7 @@ export default function BlogsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchBlogs();
@@ -37,6 +38,7 @@ export default function BlogsPage() {
       if (res.ok) {
         const data = await res.json();
         setViewCounts(data.blogViewCounts || {});
+        setLikeCounts(data.blogLikeCounts || {});
       }
     } catch {}
   };
@@ -189,6 +191,10 @@ export default function BlogsPage() {
                   <span className="flex items-center gap-1.5 text-green-600">
                     <Eye size={12} />
                     {(viewCounts[blog.id] || 0).toLocaleString()} view{viewCounts[blog.id] !== 1 ? "s" : ""}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-pink-500">
+                    <ThumbsUp size={12} />
+                    {(likeCounts[blog.id] || 0).toLocaleString()} like{likeCounts[blog.id] !== 1 ? "s" : ""}
                   </span>
                 </div>
 

@@ -12,12 +12,14 @@ import {
   Globe,
   Calendar,
   Loader2,
+  ThumbsUp,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 interface AnalyticsData {
   totalViews: number;
+  totalLikes: number;
   dailyViews: { date: string; views: number }[];
   devices: { device: string; count: number }[];
   referrers: { source: string; count: number }[];
@@ -159,16 +161,29 @@ export default function BlogAnalyticsPage() {
           </div>
         ) : (
           <>
-            {/* Total Views Card */}
-            <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm mb-10 flex items-center gap-6">
-              <div className="p-4 bg-blue-50 rounded-2xl text-blue-600">
-                <Eye size={28} />
+            {/* Stat Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
+              <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex items-center gap-6">
+                <div className="p-4 bg-blue-50 rounded-2xl text-blue-600">
+                  <Eye size={28} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
+                    Total Views ({PERIODS.find((p) => p.value === period)?.label})
+                  </p>
+                  <p className="text-4xl font-black text-gray-900">{data.totalViews.toLocaleString()}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
-                  Total Views ({PERIODS.find((p) => p.value === period)?.label})
-                </p>
-                <p className="text-4xl font-black text-gray-900">{data.totalViews.toLocaleString()}</p>
+              <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex items-center gap-6">
+                <div className="p-4 bg-pink-50 rounded-2xl text-pink-500">
+                  <ThumbsUp size={28} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">
+                    Total Likes
+                  </p>
+                  <p className="text-4xl font-black text-gray-900">{data.totalLikes.toLocaleString()}</p>
+                </div>
               </div>
             </div>
 
