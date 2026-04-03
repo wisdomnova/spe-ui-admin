@@ -10,7 +10,7 @@ export default function ResizableImageView({ node, updateAttributes, selected }:
   const startWidth = useRef(0);
   const handleSide = useRef<"left" | "right">("right");
 
-  const { src, alt, title, width } = node.attrs;
+  const { src, alt, title, width, caption } = node.attrs;
 
   const onMouseDown = useCallback(
     (side: "left" | "right") => (e: React.MouseEvent) => {
@@ -50,7 +50,7 @@ export default function ResizableImageView({ node, updateAttributes, selected }:
   return (
     <NodeViewWrapper
       className="resizable-image-wrapper"
-      style={{ display: "flex", justifyContent: "center", margin: "1.5rem 0" }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", margin: "1.5rem 0" }}
     >
       <div
         className="resizable-image-container"
@@ -147,6 +147,37 @@ export default function ResizableImageView({ node, updateAttributes, selected }:
           </>
         )}
       </div>
+
+      {/* Editable caption */}
+      <input
+        type="text"
+        value={caption || ""}
+        onChange={(e) => updateAttributes({ caption: e.target.value })}
+        placeholder="Add a caption…"
+        style={{
+          width: width ? `${width}px` : "100%",
+          maxWidth: "100%",
+          marginTop: 8,
+          padding: "4px 8px",
+          textAlign: "center",
+          fontSize: 13,
+          fontStyle: "italic",
+          color: caption ? "#6b7280" : "#d1d5db",
+          background: "transparent",
+          border: "none",
+          borderBottom: selected ? "1px dashed #93c5fd" : "1px dashed transparent",
+          outline: "none",
+          transition: "border-color 0.2s",
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderBottom = "1px dashed #93c5fd";
+        }}
+        onBlur={(e) => {
+          if (!selected) {
+            e.currentTarget.style.borderBottom = "1px dashed transparent";
+          }
+        }}
+      />
     </NodeViewWrapper>
   );
 }

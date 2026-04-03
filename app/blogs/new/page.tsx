@@ -171,6 +171,16 @@ function NewBlogPageContent() {
     setLastSaved(null);
   };
 
+  /** Process HTML for preview: fix empty paragraphs & render captions */
+  const processContent = (html: string) => {
+    let processed = html.replace(/<p><\/p>/g, '<p><br></p>');
+    processed = processed.replace(
+      /<img\s([^>]*?)data-caption="([^"]*)"([^>]*?)\/?>/g,
+      '<figure class="image-figure" data-type="image" style="margin:2rem auto;text-align:center"><img $1$3 style="border-radius:1rem;margin:0 auto"><figcaption style="margin-top:0.5rem;font-size:0.875rem;font-style:italic;color:#6b7280">$2</figcaption></figure>'
+    );
+    return processed;
+  };
+
   const categories = [
     "News", "Sports", "Interview", "Spotlight", 
     "Events", "Editorial", "Articles", "Others"
@@ -569,7 +579,7 @@ function NewBlogPageContent() {
 
                   <div 
                     className="prose prose-xl prose-blue max-w-none text-gray-800 leading-relaxed font-medium"
-                    dangerouslySetInnerHTML={{ __html: content || "<p class='text-gray-200'>Nothing to preview yet...</p>" }}
+                    dangerouslySetInnerHTML={{ __html: processContent(content) || "<p class='text-gray-200'>Nothing to preview yet...</p>" }}
                   />
                 </div>
               </motion.div>
