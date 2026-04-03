@@ -31,9 +31,9 @@ import {
   AlignRight,
   Minus,
   Unlink,
-  Upload,
   Clock,
 } from "lucide-react";
+import MediaPickerModal from "./MediaPickerModal";
 
 interface BlogEditorProps {
   content: string;
@@ -71,11 +71,8 @@ const MenuButton = ({
 export default function BlogEditor({ content, onChange }: BlogEditorProps) {
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
-  const [showImageInput, setShowImageInput] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [imageAlt, setImageAlt] = useState("");
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [currentTime, setCurrentTime] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const update = () => {
@@ -94,6 +91,13 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
     const interval = setInterval(update, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // ── Prevent onUpdate→setState→setContent loop that eats keystrokes ──
+  // Use a ref so the onUpdate callback always has the latest onChange
+  // without needing to re-create the editor.
+  const isInternalUpdate = useRef(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -127,7 +131,11 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
     ],
     content,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      isInternalUpdate.current = true;
+      onChangeRef.current(editor.getHTML());
+      requestAnimationFrame(() => {
+        isInternalUpdate.current = false;
+      });
     },
     editorProps: {
       attributes: {
@@ -135,13 +143,13 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
           "prose prose-lg focus:outline-none max-w-none min-h-[400px] text-gray-800 leading-relaxed [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-4 [&_h1]:mt-6 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-3 [&_h2]:mt-5 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:mb-2 [&_h3]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-gray-500 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-1",
       },
       handleKeyDown: (view, event) => {
-        // Tab key → insert a tab-width space instead of moving focus
-        if (event.key === "Tab" && !event.shiftKey) {
+        // Tab key → insert a tab-width indent (4 non-breaking spaces)
+        if (event.key === "Tab") {
           event.preventDefault();
           const { state, dispatch } = view;
-          const { tr } = state;
-          // Insert 4 non-breaking spaces as a "tab"
-          dispatch(tr.insertText("\u00A0\u00A0\u00A0\u00A0"));
+          const { tr, selection } = state;
+          const tabSpaces = "\u00A0\u00A0\u00A0\u00A0";
+          dispatch(tr.insertText(tabSpaces, selection.from, selection.to));
           return true;
         }
         return false;
@@ -152,11 +160,16 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
   // Keeps editor in sync when content changes externally
   // (edit-mode fetch, draft restore, etc.)
   const lastExternalContent = useRef(content);
+
   useEffect(() => {
     if (!editor) return;
+    // Skip if the editor itself caused this content change (typing)
+    if (isInternalUpdate.current) {
+      lastExternalContent.current = content;
+      return;
+    }
     if (content && content !== lastExternalContent.current) {
       lastExternalContent.current = content;
-      // emitUpdate = false → avoids triggering onChange → infinite loop
       editor.commands.setContent(content, { emitUpdate: false });
     }
   }, [content, editor]);
@@ -177,59 +190,21 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
     setLinkUrl("");
   }, [editor, linkUrl]);
 
-  const addImage = useCallback(() => {
-    if (!editor || !imageUrl.trim()) return;
-
-    const url = imageUrl.startsWith("http") ? imageUrl : `https://${imageUrl}`;
-    editor.chain().focus().setImage({ src: url, alt: imageAlt || "Blog image" }).run();
-    setShowImageInput(false);
-    setImageUrl("");
-    setImageAlt("");
-  }, [editor, imageUrl, imageAlt]);
-
-  const handleFileUpload = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!editor) return;
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      if (!file.type.startsWith("image/")) {
-        alert("Please select an image file.");
-        return;
-      }
-
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image must be under 5MB.");
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        editor.chain().focus().setImage({ src: result, alt: file.name }).run();
-      };
-      reader.readAsDataURL(file);
-
-      // Reset input so re-uploading the same file triggers onChange
-      e.target.value = "";
-    },
-    [editor]
-  );
-
   const openLinkInput = useCallback(() => {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href || "";
     setLinkUrl(previousUrl);
     setShowLinkInput(true);
-    setShowImageInput(false);
   }, [editor]);
 
-  const openImageInput = useCallback(() => {
-    setShowImageInput(true);
-    setShowLinkInput(false);
-    setImageUrl("");
-    setImageAlt("");
-  }, []);
+  const handleMediaSelect = useCallback(
+    (file: { url: string; name?: string }) => {
+      if (!editor) return;
+      editor.chain().focus().setImage({ src: file.url, alt: file.name || "Blog image" }).run();
+      setShowMediaPicker(false);
+    },
+    [editor]
+  );
 
   if (!editor) return null;
 
@@ -238,15 +213,6 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
 
   return (
     <div className="w-full bg-white rounded-3xl border border-gray-100 shadow-xl shadow-blue-50/20 overflow-hidden">
-      {/* Hidden file input for image uploads */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileUpload}
-        className="hidden"
-      />
-
       {/* Toolbar */}
       <div className="px-6 py-4 border-b border-gray-50 flex flex-wrap items-center gap-1 bg-gray-50/30">
         {/* Headings */}
@@ -385,14 +351,8 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
             <Unlink size={20} />
           </MenuButton>
         )}
-        <MenuButton onClick={openImageInput} title="Image from URL">
+        <MenuButton onClick={() => setShowMediaPicker(true)} title="Insert Image">
           <ImageIcon size={20} />
-        </MenuButton>
-        <MenuButton
-          onClick={() => fileInputRef.current?.click()}
-          title="Upload Image from Computer"
-        >
-          <Upload size={20} />
         </MenuButton>
 
         <div className="flex-1" />
@@ -451,66 +411,6 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
         </div>
       )}
 
-      {/* Image Input Bar */}
-      {showImageInput && (
-        <div className="px-6 py-3 border-b border-gray-50 bg-green-50/50 flex items-center gap-3 flex-wrap">
-          <ImageIcon size={16} className="text-green-600 shrink-0" />
-          <input
-            type="url"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addImage();
-              if (e.key === "Escape") {
-                setShowImageInput(false);
-                setImageUrl("");
-                setImageAlt("");
-              }
-            }}
-            placeholder="Paste image URL..."
-            className="flex-1 min-w-[150px] bg-transparent text-sm font-bold text-gray-800 outline-none placeholder:text-green-300"
-            autoFocus
-          />
-          <input
-            type="text"
-            value={imageAlt}
-            onChange={(e) => setImageAlt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") addImage();
-            }}
-            placeholder="Alt text"
-            className="w-32 bg-transparent text-sm font-bold text-gray-800 outline-none placeholder:text-green-300 border-l border-green-200 pl-3"
-          />
-          <button
-            onClick={addImage}
-            className="px-4 py-1.5 bg-green-600 text-white text-xs font-black uppercase tracking-widest rounded-lg hover:bg-green-700 transition-colors"
-          >
-            Insert
-          </button>
-          <span className="text-gray-300 text-xs font-bold">or</span>
-          <button
-            onClick={() => {
-              setShowImageInput(false);
-              fileInputRef.current?.click();
-            }}
-            className="px-4 py-1.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-lg hover:bg-gray-900 transition-colors flex items-center gap-2"
-          >
-            <Upload size={12} />
-            Upload
-          </button>
-          <button
-            onClick={() => {
-              setShowImageInput(false);
-              setImageUrl("");
-              setImageAlt("");
-            }}
-            className="px-4 py-1.5 text-gray-400 text-xs font-black uppercase tracking-widest rounded-lg hover:text-gray-900 transition-colors"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
       {/* Editor Content */}
       <div className="p-10 px-12 sm:px-16 md:px-20 lg:px-24">
         <EditorContent editor={editor} />
@@ -537,6 +437,12 @@ export default function BlogEditor({ content, onChange }: BlogEditorProps) {
           </p>
         </div>
       </div>
+
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={handleMediaSelect}
+      />
     </div>
   );
 }
