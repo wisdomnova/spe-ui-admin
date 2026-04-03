@@ -14,11 +14,14 @@ import {
   Loader2,
   ArrowUpRight,
   ThumbsUp,
+  RefreshCw,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 
 interface AnalyticsData {
   totalViews: number;
+  uniqueViews: number;
   totalLikes: number;
   dailyViews: { date: string; views: number }[];
   devices: { device: string; count: number }[];
@@ -100,8 +103,17 @@ export default function AnalyticsPage() {
             <p className="text-gray-500 font-medium">Track blog performance and audience insights.</p>
           </div>
 
-          {/* Period Selector */}
-          <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm">
+          {/* Period Selector + Refresh */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => fetchAnalytics()}
+              disabled={loading}
+              className={`p-3 rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:bg-gray-50 hover:shadow-md active:scale-95 ${loading ? "animate-spin" : ""}`}
+              title="Refresh stats"
+            >
+              <RefreshCw size={18} className={`text-gray-500 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            <div className="flex gap-2 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm">
             {PERIODS.map((p) => (
               <button
                 key={p.value}
@@ -115,6 +127,7 @@ export default function AnalyticsPage() {
                 {p.label}
               </button>
             ))}
+            </div>
           </div>
         </header>
 

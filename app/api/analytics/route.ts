@@ -36,6 +36,15 @@ export async function GET(req: NextRequest) {
     if (blogId) totalQuery = totalQuery.eq("blog_id", blogId);
     const { count: totalViews } = await totalQuery;
 
+    // ── Unique views (distinct fingerprints) ──
+    let uniqueQuery = supabase.from("blog_views").select("fingerprint");
+    if (cutoff) uniqueQuery = uniqueQuery.gte("viewed_at", cutoff);
+    if (blogId) uniqueQuery = uniqueQuery.eq("blog_id", blogId);
+    uniqueQuery = uniqueQuery.not("fingerprint", "is", null);
+    const { data: uniqueRaw } = await uniqueQuery;
+    const uniqueFingerprints = new Set((uniqueRaw || []).map((r: { fingerprint: string }) => r.fingerprint));
+    const uniqueViews = uniqueFingerprints.size;
+
     // ── Views per day (for chart) ──
     let dailyQuery = supabase.from("blog_views").select("viewed_at");
     if (cutoff) dailyQuery = dailyQuery.gte("viewed_at", cutoff);
@@ -148,6 +157,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       totalViews: totalViews || 0,
+      uniqueViews,
       totalLikes: totalLikes || 0,
       dailyViews,
       devices,
