@@ -18,6 +18,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   BarChart3,
+  Vote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LogoutButton from "./LogoutButton";
@@ -70,6 +71,7 @@ const ALL_MENU_ITEMS = [
   { href: "/media", icon: Images, label: "Media", roles: ["admin", "media", "events"] },
   { href: "/submissions", icon: Inbox, label: "Submissions", roles: ["admin"] },
   { href: "/sponsors", icon: Briefcase, label: "Sponsors", roles: ["admin"] },
+  { href: "/elections", icon: Vote, label: "Elections", roles: ["admin"] },
   { href: "/leaderboard", icon: Trophy, label: "Leaderboard", roles: ["admin"] },
 ];
 
