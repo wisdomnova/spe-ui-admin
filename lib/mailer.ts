@@ -90,23 +90,46 @@ export async function processQueue(limit = 50): Promise<{
   failed: number;
   remaining: number;
 }> {
-  // Grab a batch of pending emails
-  const { data: emails, error } = await supabase
-    .from("email_queue")
-    .select("*")
-    .eq("status", "pending")
-    .order("created_at", { ascending: true })
-    .limit(limit);
+  // Atomically claim a batch: update pending → sending AND return claimed rows
+  // This eliminates any race window between two concurrent cron calls
+  const { data: emails, error } = await supabase.rpc("claim_email_batch", {
+    batch_limit: limit,
+  });
 
-  if (error) throw new Error(`Queue fetch error: ${error.message}`);
+  if (error) {
+    // Fallback: if the RPC doesn't exist yet, use the old select-then-update approach
+    if (error.code === "PGRST202") {
+      const { data: fallbackEmails, error: fbErr } = await supabase
+        .from("email_queue")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(limit);
+
+      if (fbErr) throw new Error(`Queue fetch error: ${fbErr.message}`);
+      if (!fallbackEmails || fallbackEmails.length === 0) return { sent: 0, failed: 0, remaining: 0 };
+
+      const fbIds = fallbackEmails.map((e) => e.id);
+      await supabase
+        .from("email_queue")
+        .update({ status: "sending" })
+        .in("id", fbIds);
+
+      return sendBatch(fallbackEmails);
+    }
+    throw new Error(`Queue fetch error: ${error.message}`);
+  }
+
   if (!emails || emails.length === 0) return { sent: 0, failed: 0, remaining: 0 };
 
-  // Mark batch as "sending" to avoid double-processing
-  const ids = emails.map((e) => e.id);
-  await supabase
-    .from("email_queue")
-    .update({ status: "sending" })
-    .in("id", ids);
+  return sendBatch(emails);
+}
+
+async function sendBatch(emails: Array<Record<string, string>>): Promise<{
+  sent: number;
+  failed: number;
+  remaining: number;
+}> {
 
   let sent = 0;
   let failed = 0;
