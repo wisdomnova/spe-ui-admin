@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(500);
 
-    if (game && (game === "reaction" || game === "emoji")) {
+    if (game && (game === "reaction" || game === "emoji" || game === "stacker")) {
       query = query.eq("game", game);
     }
 

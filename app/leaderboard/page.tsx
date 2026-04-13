@@ -13,18 +13,19 @@ import {
   Filter,
   Clock,
   BookOpen,
+  Layers,
 } from "lucide-react";
 import Link from "next/link";
 
 interface LeaderboardEntry {
   id: string;
-  game: "reaction" | "emoji";
+  game: "reaction" | "emoji" | "stacker";
   player_name: string;
   score: number;
   created_at: string;
 }
 
-type GameFilter = "all" | "reaction" | "emoji";
+type GameFilter = "all" | "reaction" | "emoji" | "stacker";
 
 export default function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -74,9 +75,9 @@ export default function LeaderboardPage() {
       return matchesGame && matchesSearch;
     })
     .sort((a, b) => {
-      // Sort by best score: reaction = lower is better, emoji = higher is better
+      // Sort by best score: reaction = lower is better, emoji/stacker = higher is better
       if (gameFilter === "reaction") return a.score - b.score;
-      if (gameFilter === "emoji") return b.score - a.score;
+      if (gameFilter === "emoji" || gameFilter === "stacker") return b.score - a.score;
       // "all" - group by game, then sort within
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
@@ -84,11 +85,15 @@ export default function LeaderboardPage() {
   /* ── Stats ── */
   const reactionEntries = entries.filter((e) => e.game === "reaction");
   const emojiEntries = entries.filter((e) => e.game === "emoji");
+  const stackerEntries = entries.filter((e) => e.game === "stacker");
   const bestReaction = reactionEntries.length
     ? reactionEntries.reduce((best, e) => (e.score < best.score ? e : best))
     : null;
   const bestEmoji = emojiEntries.length
     ? emojiEntries.reduce((best, e) => (e.score > best.score ? e : best))
+    : null;
+  const bestStacker = stackerEntries.length
+    ? stackerEntries.reduce((best, e) => (e.score > best.score ? e : best))
     : null;
   const uniquePlayers = new Set(entries.map((e) => e.player_name.toLowerCase())).size;
 
@@ -106,7 +111,7 @@ export default function LeaderboardPage() {
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
           <div className="space-y-2">
             <h2 className="text-4xl font-black text-gray-900 tracking-tight">Leaderboard</h2>
-            <p className="text-gray-500 font-medium">All-time scores from Reaction Speed Test and Emoji Decode.</p>
+            <p className="text-gray-500 font-medium">All-time scores from Reaction Speed Test, Emoji Decode, and Barrel Stacker.</p>
           </div>
           <div className="flex items-center gap-3 text-sm flex-wrap">
             <Link
@@ -122,6 +127,9 @@ export default function LeaderboardPage() {
             <span className="px-4 py-2 rounded-2xl bg-violet-50 text-violet-600 font-black text-xs uppercase tracking-widest">
               {emojiEntries.length} Emoji
             </span>
+            <span className="px-4 py-2 rounded-2xl bg-blue-50 text-blue-600 font-black text-xs uppercase tracking-widest">
+              {stackerEntries.length} Stacker
+            </span>
             <span className="px-4 py-2 rounded-2xl bg-gray-50 text-gray-400 font-black text-xs uppercase tracking-widest">
               {uniquePlayers} Players
             </span>
@@ -129,7 +137,7 @@ export default function LeaderboardPage() {
         </header>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           <div className="bg-white border border-gray-100 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <Zap size={16} className="text-rose-600" />
@@ -164,7 +172,24 @@ export default function LeaderboardPage() {
             )}
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-2xl p-6 sm:col-span-2 lg:col-span-1">
+          <div className="bg-white border border-gray-100 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Layers size={16} className="text-blue-600" />
+              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Top Stacker</p>
+            </div>
+            {bestStacker ? (
+              <div>
+                <p className="text-2xl font-black text-gray-900">
+                  {bestStacker.score}<span className="text-sm text-gray-400 ml-1">barrels</span>
+                </p>
+                <p className="text-xs font-bold text-gray-400 mt-1">by {bestStacker.player_name}</p>
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-gray-300">No scores yet</p>
+            )}
+          </div>
+
+          <div className="bg-white border border-gray-100 rounded-2xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <Trophy size={16} className="text-amber-500" />
               <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total Plays</p>
@@ -188,7 +213,7 @@ export default function LeaderboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-gray-300 shrink-0" />
-            {(["all", "reaction", "emoji"] as const).map((g) => (
+            {(["all", "reaction", "emoji", "stacker"] as const).map((g) => (
               <button
                 key={g}
                 onClick={() => setGameFilter(g)}
@@ -198,11 +223,13 @@ export default function LeaderboardPage() {
                       ? "bg-rose-600 text-white shadow-lg shadow-rose-200"
                       : g === "emoji"
                         ? "bg-violet-600 text-white shadow-lg shadow-violet-200"
-                        : "bg-gray-900 text-white shadow-lg"
+                        : g === "stacker"
+                          ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                          : "bg-gray-900 text-white shadow-lg"
                     : "bg-white border border-gray-100 text-gray-400 hover:text-gray-900"
                 }`}
               >
-                {g === "all" ? "All" : g === "reaction" ? "Reaction" : "Emoji"}
+                {g === "all" ? "All" : g === "reaction" ? "Reaction" : g === "emoji" ? "Emoji" : "Stacker"}
               </button>
             ))}
           </div>
@@ -273,10 +300,12 @@ export default function LeaderboardPage() {
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
                               entry.game === "reaction"
                                 ? "bg-rose-50 text-rose-600 border border-rose-100"
-                                : "bg-violet-50 text-violet-600 border border-violet-100"
+                                : entry.game === "stacker"
+                                  ? "bg-blue-50 text-blue-600 border border-blue-100"
+                                  : "bg-violet-50 text-violet-600 border border-violet-100"
                             }`}
                           >
-                            {entry.game === "reaction" ? <Zap size={10} /> : <Smile size={10} />}
+                            {entry.game === "reaction" ? <Zap size={10} /> : entry.game === "stacker" ? <Layers size={10} /> : <Smile size={10} />}
                             {entry.game}
                           </span>
                         </td>
@@ -284,7 +313,9 @@ export default function LeaderboardPage() {
                           <span className="text-sm font-black text-gray-900">
                             {entry.game === "reaction"
                               ? `${entry.score.toFixed(0)} ms`
-                              : `${entry.score} pts`}
+                              : entry.game === "stacker"
+                                ? `${entry.score} barrels`
+                                : `${entry.score} pts`}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -328,17 +359,19 @@ export default function LeaderboardPage() {
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase ${
                           entry.game === "reaction"
                             ? "bg-rose-50 text-rose-600"
-                            : "bg-violet-50 text-violet-600"
+                            : entry.game === "stacker"
+                              ? "bg-blue-50 text-blue-600"
+                              : "bg-violet-50 text-violet-600"
                         }`}
                       >
-                        {entry.game === "reaction" ? <Zap size={8} /> : <Smile size={8} />}
+                        {entry.game === "reaction" ? <Zap size={8} /> : entry.game === "stacker" ? <Layers size={8} /> : <Smile size={8} />}
                         {entry.game}
                       </span>
                       <span className="text-[10px] font-medium text-gray-300">{formatDate(entry.created_at)}</span>
                     </div>
                   </div>
                   <span className="text-sm font-black text-gray-900 shrink-0">
-                    {entry.game === "reaction" ? `${entry.score.toFixed(0)}ms` : `${entry.score}pts`}
+                    {entry.game === "reaction" ? `${entry.score.toFixed(0)}ms` : entry.game === "stacker" ? `${entry.score}` : `${entry.score}pts`}
                   </span>
                   <button
                     onClick={() => handleDelete(entry.id)}
