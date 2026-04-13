@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import * as XLSX from "xlsx";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
 }
 
 /**
- * GET /api/elections/[id]/voters - list all voters for the election
+ * GET /api/elections/[id]/voters - list voters assigned to this election
+ * Returns voter data joined from the global voters table + has_voted status
  */
 export async function GET(_req: NextRequest, ctx: RouteContext) {
   try {
@@ -18,23 +18,40 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
     const { id } = await ctx.params;
 
     const { data, error } = await supabase
-      .from("election_voters")
-      .select("*")
+      .from("election_voter_assignments")
+      .select("id, election_id, voter_id, has_voted, created_at, voters(id, name, matric_number, email, level, department)")
       .eq("election_id", id)
-      .order("name");
+      .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data);
+
+    // Flatten the response for easier consumption
+    const voters = (data || []).map((row: Record<string, unknown>) => {
+      const voter = row.voters as Record<string, unknown> | null;
+      return {
+        assignment_id: row.id,
+        election_id: row.election_id,
+        voter_id: row.voter_id,
+        has_voted: row.has_voted,
+        assigned_at: row.created_at,
+        name: voter?.name || "",
+        matric_number: voter?.matric_number || "",
+        email: voter?.email || "",
+        level: voter?.level || null,
+        department: voter?.department || null,
+      };
+    });
+
+    return NextResponse.json(voters);
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * POST /api/elections/[id]/voters - upload voters from Excel or add single voter
+ * POST /api/elections/[id]/voters - assign voter(s) to this election
  *
- * If Content-Type is multipart/form-data → expects an Excel file
- * If Content-Type is application/json → expects a single voter object
+ * Body: { voter_ids: string[] }
  */
 export async function POST(req: NextRequest, ctx: RouteContext) {
   try {
@@ -42,99 +59,37 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await ctx.params;
-    const contentType = req.headers.get("content-type") || "";
+    const body = await req.json();
 
-    // ── Single voter (JSON) ──
-    if (contentType.includes("application/json")) {
-      const body = await req.json();
-      const { data, error } = await supabase
-        .from("election_voters")
-        .insert({
-          election_id: id,
-          name: body.name,
-          matric_number: body.matric_number,
-          email: body.email,
-          level: body.level || null,
-        })
-        .select()
-        .single();
-
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json(data, { status: 201 });
+    const voterIds: string[] = body.voter_ids || [];
+    if (voterIds.length === 0) {
+      return NextResponse.json({ error: "No voter IDs provided" }, { status: 400 });
     }
 
-    // ── Excel upload (multipart/form-data) ──
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    const assignments = voterIds.map((voterId) => ({
+      election_id: id,
+      voter_id: voterId,
+    }));
 
-    if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-
-    const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: "array" });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
-
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "Excel file is empty" }, { status: 400 });
-    }
-
-    // Normalize headers: lowercase + trim
-    const normalizeKey = (key: string) => key.toLowerCase().trim().replace(/\s+/g, "_");
-
-    const voters = rows.map((row) => {
-      const normalized: Record<string, string> = {};
-      for (const [key, value] of Object.entries(row)) {
-        normalized[normalizeKey(String(key))] = String(value).trim();
-      }
-
-      // Try common header variations
-      const name =
-        normalized["name"] || normalized["full_name"] || normalized["student_name"] || normalized["fullname"] || "";
-      const matric =
-        normalized["matric"] || normalized["matric_number"] || normalized["matric_no"] || normalized["matriculation_number"] || "";
-      const email =
-        normalized["email"] || normalized["email_address"] || normalized["e-mail"] || "";
-      const level =
-        normalized["level"] || normalized["class"] || normalized["year"] || "";
-
-      return { election_id: id, name, matric_number: matric, email, level };
-    });
-
-    // Filter out rows with missing required fields
-    const validVoters = voters.filter((v) => v.name && v.matric_number && v.email);
-    const skipped = voters.length - validVoters.length;
-
-    if (validVoters.length === 0) {
-      return NextResponse.json(
-        {
-          error: "No valid rows found. Ensure columns include: name, matric (or matric_number), email, level",
-          skipped: voters.length,
-        },
-        { status: 400 }
-      );
-    }
-
-    // Upsert to avoid duplicate matric_number per election
     const { data, error } = await supabase
-      .from("election_voters")
-      .upsert(validVoters, { onConflict: "election_id,matric_number" })
+      .from("election_voter_assignments")
+      .upsert(assignments, { onConflict: "election_id,voter_id" })
       .select();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({
-      imported: data?.length || 0,
-      skipped,
-      total_rows: rows.length,
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "Internal server error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ assigned: data?.length || 0 }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * DELETE /api/elections/[id]/voters?voter_id=... or ?clear=true to remove all
+ * DELETE /api/elections/[id]/voters - unassign voter(s) from this election
+ *
+ * Query params:
+ *   voter_id  – single voter to unassign
+ *   clear     – "true" to unassign all voters
  */
 export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
@@ -147,14 +102,18 @@ export async function DELETE(req: NextRequest, ctx: RouteContext) {
     const clearAll = searchParams.get("clear") === "true";
 
     if (clearAll) {
-      const { error } = await supabase.from("election_voters").delete().eq("election_id", id);
+      const { error } = await supabase.from("election_voter_assignments").delete().eq("election_id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json({ success: true, message: "All voters cleared" });
+      return NextResponse.json({ success: true, message: "All voters unassigned" });
     }
 
     if (!voterId) return NextResponse.json({ error: "voter_id or clear=true required" }, { status: 400 });
 
-    const { error } = await supabase.from("election_voters").delete().eq("id", voterId);
+    const { error } = await supabase
+      .from("election_voter_assignments")
+      .delete()
+      .eq("election_id", id)
+      .eq("voter_id", voterId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch {
