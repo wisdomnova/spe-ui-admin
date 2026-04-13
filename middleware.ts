@@ -42,8 +42,10 @@ const ROLE_ALLOWED_PAGES: Record<string, string[]> = {
 /**
  * Check if a given pathname is allowed for the role.
  * Admin role has unrestricted access.
+ * "/" (overview) is always accessible to any authenticated user to prevent redirect loops.
  */
 function isPageAllowedForRole(pathname: string, role: string): boolean {
+  if (pathname === "/") return true; // Overview is always safe - prevents redirect loops
   if (role === "admin" || role === "dev") return true;
   const allowed = ROLE_ALLOWED_PAGES[role];
   if (!allowed) return false;
@@ -92,10 +94,8 @@ export async function middleware(req: NextRequest) {
   // Role-based page access - only enforce on non-API page routes
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/dev")) {
     if (!isPageAllowedForRole(pathname, session.role)) {
-      // Redirect to last visited page, or overview as fallback
-      const lastPage = req.cookies.get("spe_last_page")?.value;
-      const fallback = lastPage && lastPage !== pathname && lastPage !== "/login" ? lastPage : "/";
-      return NextResponse.redirect(new URL(fallback, req.url));
+      // Always redirect to overview - it's guaranteed accessible
+      return NextResponse.redirect(new URL("/", req.url));
     }
   }
 
