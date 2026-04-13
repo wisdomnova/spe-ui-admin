@@ -42,7 +42,7 @@ export async function sendEmail({
 
 /**
  * Enqueue emails into the email_queue table and return the batch_id.
- * The emails are NOT sent yet — call processQueue() after.
+ * The emails are NOT sent yet - call processQueue() after.
  */
 export async function enqueueEmails({
   recipients,

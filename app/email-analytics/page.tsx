@@ -94,7 +94,7 @@ export default function EmailAnalyticsPage() {
   }, [fetchAnalytics]);
 
   const fmt = (n: number) => n.toLocaleString();
-  const pct = (n: number, d: number) => (d > 0 ? ((n / d) * 100).toFixed(1) + "%" : "—");
+  const pct = (n: number, d: number) => (d > 0 ? ((n / d) * 100).toFixed(1) + "%" : "-");
 
   return (
     <div className="p-4 sm:p-6 lg:p-12">

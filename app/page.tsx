@@ -82,6 +82,7 @@ const QUICK_LINKS = [
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string>("");
 
   const fetchDashboard = () => {
     setLoading(true);
@@ -92,7 +93,13 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchDashboard(); }, []);
+  useEffect(() => {
+    fetchDashboard();
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.user?.role) setRole(d.user.role); })
+      .catch(() => {});
+  }, []);
 
   const maxDaily = useMemo(() => {
     if (!data?.dailyViews?.length) return 1;
@@ -121,7 +128,9 @@ export default function Dashboard() {
           <div className="space-y-1">
             <h2 className="text-4xl font-black text-gray-900 tracking-tight">Overview</h2>
             <p className="text-gray-500 font-medium">
-              Welcome to the SPEUI Administrative Control Center.
+              {role
+                ? `Welcome, ${role.charAt(0).toUpperCase() + role.slice(1)}. Here's your dashboard.`
+                : "Welcome to the SPEUI Administrative Control Center."}
             </p>
           </div>
           <button
@@ -296,7 +305,7 @@ export default function Dashboard() {
                       <span className="text-sm font-black text-orange-700 leading-none">
                         {event.date
                           ? new Date(event.date).getDate()
-                          : "—"}
+                          : "-"}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">

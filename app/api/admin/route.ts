@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       .insert({
         email: email.toLowerCase().trim(),
         password_hash,
-        role: role || "events",
+        role: role || "programs",
       })
       .select("id, email, role, created_at")
       .single();

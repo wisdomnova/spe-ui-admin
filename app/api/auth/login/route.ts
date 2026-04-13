@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
-import { signJWT, setSessionCookie } from "@/lib/auth";
+import { signJWT, setSessionCookie, SessionPayload } from "@/lib/auth";
 
 /**
  * POST /api/auth/login
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const token = await signJWT({
       sub: user.id,
       email: user.email,
-      role: user.role as "admin" | "media" | "events",
+      role: user.role as SessionPayload["role"],
     });
 
     // Set cookie and return

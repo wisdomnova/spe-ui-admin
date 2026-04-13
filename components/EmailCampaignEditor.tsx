@@ -66,7 +66,7 @@ export interface EmailCampaignEditorProps {
   recipientCountLabel: string;
   /** Whether to include unsubscribe link in email footer */
   includeUnsubscribe?: boolean;
-  /** Callback after successful send — parent can refresh/reset */
+  /** Callback after successful send - parent can refresh/reset */
   onSendComplete?: () => void;
 }
 
@@ -110,7 +110,7 @@ export default function EmailCampaignEditor({
     }
   }, []);
 
-  // Send campaign — queues emails then kicks off processing
+  // Send campaign - queues emails then kicks off processing
   const handleSend = async () => {
     if (!subject.trim() || !htmlContent.trim() || selectedIds.size === 0) return;
     setSending(true);

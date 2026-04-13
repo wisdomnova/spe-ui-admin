@@ -25,7 +25,7 @@ function getSecret() {
 export interface SessionPayload {
   sub: string;        // user id
   email: string;
-  role: "admin" | "media" | "events" | "dev";
+  role: "admin" | "programs" | "editorial" | "dni" | "overall" | "partnership" | "electoral" | "dev";
 }
 
 /* ── JWT Operations ───────────────────────────── */

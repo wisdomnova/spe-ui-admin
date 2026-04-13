@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     // Step 2: Immediately start processing (best-effort)
     // If this times out, the cron route will pick up remaining emails
     processQueue(queued).catch(() => {
-      // Swallow — cron will handle remaining
+      // Swallow - cron will handle remaining
     });
 
     return NextResponse.json({

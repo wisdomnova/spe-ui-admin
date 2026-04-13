@@ -298,7 +298,7 @@ export default function VotersPage() {
                   <div className="flex items-center gap-2">
                     <CheckCircle size={16} />
                     {uploadResult.imported} voter{uploadResult.imported !== 1 ? "s" : ""} imported
-                    {(uploadResult.skipped ?? 0) > 0 && ` (${uploadResult.skipped} skipped — missing data)`}
+                    {(uploadResult.skipped ?? 0) > 0 && ` (${uploadResult.skipped} skipped - missing data)`}
                   </div>
                   <button onClick={() => setUploadResult(null)} className="text-green-400 hover:text-green-600">
                     <X size={14} />
@@ -606,8 +606,8 @@ export default function VotersPage() {
                           <td className="px-6 py-3.5 font-bold text-gray-900">{voter.name}</td>
                           <td className="px-6 py-3.5 font-medium text-gray-600">{voter.matric_number}</td>
                           <td className="px-6 py-3.5 font-medium text-gray-500">{voter.email}</td>
-                          <td className="px-6 py-3.5 font-medium text-gray-500">{voter.level || "—"}</td>
-                          <td className="px-6 py-3.5 font-medium text-gray-500">{voter.department || "—"}</td>
+                          <td className="px-6 py-3.5 font-medium text-gray-500">{voter.level || "-"}</td>
+                          <td className="px-6 py-3.5 font-medium text-gray-500">{voter.department || "-"}</td>
                           <td className="px-6 py-3.5">
                             <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                               <button

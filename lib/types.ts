@@ -128,6 +128,6 @@ export interface AdminUser {
   id: string;
   email: string;
   password_hash: string;
-  role: "admin" | "media" | "events";
+  role: "admin" | "programs" | "editorial" | "dni" | "overall" | "partnership" | "electoral";
   created_at: string;
 }

@@ -64,21 +64,23 @@ const SidebarItem = ({
 );
 
 /* ── Role → visible sidebar links ────────────── */
+const ALL_ROLES = ["admin", "programs", "editorial", "dni", "overall", "partnership", "electoral"];
+
 const ALL_MENU_ITEMS = [
-  { href: "/", icon: LayoutDashboard, label: "Overview", roles: ["admin", "media", "events"] },
-  { href: "/events", icon: Calendar, label: "Events", roles: ["admin", "events"] },
-  { href: "/blogs", icon: FileText, label: "Blogs", roles: ["admin", "media"] },
-  { href: "/analytics", icon: BarChart3, label: "Analytics", roles: ["admin", "media"] },
-  { href: "/spotlight", icon: UserCircle2, label: "Spotlight", roles: ["admin"] },
-  { href: "/team", icon: Users, label: "Team", roles: ["admin"] },
-  { href: "/media", icon: Images, label: "Media", roles: ["admin", "media", "events"] },
-  { href: "/submissions", icon: Inbox, label: "Submissions", roles: ["admin"] },
-  { href: "/sponsors", icon: Briefcase, label: "Sponsors", roles: ["admin"] },
-  { href: "/elections", icon: Vote, label: "Elections", roles: ["admin"] },
-  { href: "/voters", icon: UserCheck, label: "Voters", roles: ["admin"] },
-  { href: "/newsletter", icon: Newspaper, label: "Newsletter", roles: ["admin"] },
-  { href: "/email-analytics", icon: MailCheck, label: "Email Stats", roles: ["admin"] },
-  { href: "/leaderboard", icon: Trophy, label: "Leaderboard", roles: ["admin"] },
+  { href: "/", icon: LayoutDashboard, label: "Overview", roles: ALL_ROLES },
+  { href: "/media", icon: Images, label: "Media", roles: ALL_ROLES },
+  { href: "/leaderboard", icon: Trophy, label: "Leaderboard", roles: ALL_ROLES },
+  { href: "/events", icon: Calendar, label: "Events", roles: ["admin", "programs"] },
+  { href: "/blogs", icon: FileText, label: "Blogs", roles: ["admin", "editorial"] },
+  { href: "/analytics", icon: BarChart3, label: "Analytics", roles: ["admin", "editorial"] },
+  { href: "/email-analytics", icon: MailCheck, label: "Email Stats", roles: ["admin", "editorial", "electoral"] },
+  { href: "/submissions", icon: Inbox, label: "Submissions", roles: ["admin", "editorial"] },
+  { href: "/newsletter", icon: Newspaper, label: "Newsletter", roles: ["admin", "editorial"] },
+  { href: "/spotlight", icon: UserCircle2, label: "Spotlight", roles: ["admin", "dni"] },
+  { href: "/team", icon: Users, label: "Team", roles: ["admin", "overall"] },
+  { href: "/sponsors", icon: Briefcase, label: "Sponsors", roles: ["admin", "partnership"] },
+  { href: "/elections", icon: Vote, label: "Elections", roles: ["admin", "electoral"] },
+  { href: "/voters", icon: UserCheck, label: "Voters", roles: ["admin", "electoral"] },
 ];
 
 interface SidebarProps {
@@ -95,7 +97,7 @@ export default function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggle
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.role) setRole(d.role); })
+      .then(d => { if (d?.user?.role) setRole(d.user.role); })
       .catch(() => {});
   }, []);
 
@@ -104,10 +106,10 @@ export default function Sidebar({ mobileOpen, onMobileClose, collapsed, onToggle
     onMobileClose?.();
   }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Filter menu items based on the user's role
-  const menuItems = ALL_MENU_ITEMS.filter(
-    item => !role || item.roles.includes(role)
-  );
+  // Filter menu items based on the user's role (hide until role is loaded)
+  const menuItems = role
+    ? ALL_MENU_ITEMS.filter(item => item.roles.includes(role))
+    : [];
 
   /* ── Desktop sidebar content (supports collapsed) ── */
   const desktopContent = (

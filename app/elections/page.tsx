@@ -300,7 +300,7 @@ export default function ElectionsPage() {
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                         <Calendar size={10} /> Schedule
-                        <span className="text-gray-300 normal-case font-medium">(optional — set later)</span>
+                        <span className="text-gray-300 normal-case font-medium">(optional - set later)</span>
                       </label>
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
@@ -1172,7 +1172,7 @@ function VotersTab({
                     <td className="px-6 py-3.5 font-bold text-gray-900">{voter.name}</td>
                     <td className="px-6 py-3.5 font-medium text-gray-600">{voter.matric_number}</td>
                     <td className="px-6 py-3.5 font-medium text-gray-500">{voter.email}</td>
-                    <td className="px-6 py-3.5 font-medium text-gray-500">{voter.level || "—"}</td>
+                    <td className="px-6 py-3.5 font-medium text-gray-500">{voter.level || "-"}</td>
                     <td className="px-6 py-3.5">
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${voter.has_voted ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}>
                         {voter.has_voted ? "Yes" : "No"}
@@ -1220,7 +1220,7 @@ function VotersTab({
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   RESULTS TAB — Anonymous election progress & analytics
+   RESULTS TAB - Anonymous election progress & analytics
    ══════════════════════════════════════════════════════════════════════ */
 
 interface ResultsData {
