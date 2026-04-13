@@ -23,7 +23,7 @@ export async function GET() {
         const [positions, candidates, voters] = await Promise.all([
           supabase.from("election_positions").select("id", { count: "exact", head: true }).eq("election_id", election.id),
           supabase.from("election_candidates").select("id", { count: "exact", head: true }).eq("election_id", election.id),
-          supabase.from("election_voters").select("id", { count: "exact", head: true }).eq("election_id", election.id),
+          supabase.from("election_voter_assignments").select("id", { count: "exact", head: true }).eq("election_id", election.id),
         ]);
         return {
           ...election,
@@ -50,12 +50,21 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
+    // Validate date/time fields if provided
+    if (body.election_date || body.start_time || body.end_time) {
+      const v = validateElectionTimes(body.election_date, body.start_time, body.end_time);
+      if (v) return NextResponse.json({ error: v }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("elections")
       .insert({
         title: body.title,
         description: body.description || null,
         status: body.status || "Draft",
+        election_date: body.election_date || null,
+        start_time: body.start_time || null,
+        end_time: body.end_time || null,
       })
       .select()
       .single();
@@ -65,4 +74,43 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+/* ── Helper: validate election date/time fields ── */
+function validateElectionTimes(
+  date?: string | null,
+  startTime?: string | null,
+  endTime?: string | null,
+): string | null {
+  // All three must be provided together
+  if (!date || !startTime || !endTime) {
+    return "Election date, start time, and end time must all be provided together.";
+  }
+
+  // Check date is not in the past
+  const today = new Date().toISOString().slice(0, 10);
+  if (date < today) {
+    return "Election date cannot be in the past.";
+  }
+
+  // Check times are not equal
+  if (startTime === endTime) {
+    return "Start time and end time cannot be the same.";
+  }
+
+  // Check end time is after start time
+  if (endTime <= startTime) {
+    return "End time must be after start time.";
+  }
+
+  // If date is today, start time must not have already passed
+  if (date === today) {
+    const now = new Date();
+    const nowTime = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (startTime < nowTime) {
+      return "Start time has already passed for today. Choose a future time or later date.";
+    }
+  }
+
+  return null;
 }
