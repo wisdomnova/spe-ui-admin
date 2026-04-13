@@ -19,12 +19,6 @@ import { getSessionFromRequest } from "@/lib/auth";
    - dev        : /dev/* only (plus overview)
    ────────────────────────────────────────────────── */
 
-// Pages that don't require authentication
-const PUBLIC_PAGES = new Set(["/login", "/dev"]);
-
-// API routes that don't require authentication
-const PUBLIC_API = new Set(["/api/auth/login", "/api/auth/dev-login"]);
-
 // Define which PAGE paths each role can access
 // admin can access everything so it's not listed here
 // All roles get: /, /media, /leaderboard
@@ -56,45 +50,58 @@ function isPageAllowedForRole(pathname: string, role: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Strip trailing slash for consistent matching (except root "/")
+  const path = pathname !== "/" && pathname.endsWith("/")
+    ? pathname.slice(0, -1)
+    : pathname;
+
   // Static assets & Next.js internals - skip
   if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes(".")
+    path.startsWith("/_next") ||
+    path.startsWith("/favicon") ||
+    path.includes(".")
   ) {
     return NextResponse.next();
   }
 
-  // Public pages - allow without auth
-  if (PUBLIC_PAGES.has(pathname)) {
+  // Public pages - allow without auth (login, dev dashboard)
+  if (path === "/login" || path === "/dev") {
     return NextResponse.next();
   }
 
   // Public API endpoints - allow without auth
-  if (PUBLIC_API.has(pathname)) {
+  if (path === "/api/auth/login" || path === "/api/auth/dev-login") {
     return NextResponse.next();
   }
 
-  // Everything else: verify session cookie
+  // API routes - no redirects, just 401 if no session
+  if (path.startsWith("/api/")) {
+    const session = await getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const res = NextResponse.next();
+    res.headers.set("x-user-id", session.sub);
+    res.headers.set("x-user-email", session.email);
+    res.headers.set("x-user-role", session.role);
+    return res;
+  }
+
+  // Page routes: verify session cookie
   const session = await getSessionFromRequest(req);
 
   if (!session) {
-    // API routes get 401, pages get redirected
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   // Dev dashboard restricted to dev role
-  if (pathname.startsWith("/dev/") && session.role !== "dev") {
+  if (path.startsWith("/dev") && session.role !== "dev" && session.role !== "admin") {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Role-based page access - only enforce on non-API page routes
-  if (!pathname.startsWith("/api/") && !pathname.startsWith("/dev")) {
-    if (!isPageAllowedForRole(pathname, session.role)) {
-      // Always redirect to overview - it's guaranteed accessible
+  // Role-based page access (skip for "/" which is always allowed)
+  if (path !== "/" && !path.startsWith("/dev")) {
+    if (!isPageAllowedForRole(path, session.role)) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
@@ -104,11 +111,6 @@ export async function middleware(req: NextRequest) {
   res.headers.set("x-user-id", session.sub);
   res.headers.set("x-user-email", session.email);
   res.headers.set("x-user-role", session.role);
-
-  // Track last visited page for unauthorized redirect fallback
-  if (!pathname.startsWith("/api/") && pathname !== "/login") {
-    res.cookies.set("spe_last_page", pathname, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
-  }
 
   return res;
 }
