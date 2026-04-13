@@ -9,10 +9,14 @@ import { getSessionFromRequest } from "@/lib/auth";
    Redirects to /login if missing or expired.
 
    Role-based page access:
-   - admin : ALL pages
-   - media : Overview (/), Media (/media), Blogs (/blogs)
-   - events: Overview (/), Media (/media), Events (/events)
-   - dev   : /dev/* only (plus overview)
+   - admin      : ALL pages
+   - programs   : Overview, Media, Leaderboard, Events
+   - editorial  : Overview, Media, Leaderboard, Analytics, Email Stats, Submissions, Blogs, Newsletter
+   - dni        : Overview, Media, Leaderboard, Spotlight
+   - overall    : Overview, Media, Leaderboard, Team
+   - partnership: Overview, Media, Leaderboard, Sponsors
+   - electoral  : Overview, Media, Leaderboard, Elections, Voters, Email Stats
+   - dev        : /dev/* only (plus overview)
    ────────────────────────────────────────────────── */
 
 // Pages that don't require authentication
@@ -23,9 +27,16 @@ const PUBLIC_API = new Set(["/api/auth/login", "/api/auth/dev-login"]);
 
 // Define which PAGE paths each role can access
 // admin can access everything so it's not listed here
+// All roles get: /, /media, /leaderboard
+const SHARED_PAGES = ["/", "/media", "/leaderboard"];
+
 const ROLE_ALLOWED_PAGES: Record<string, string[]> = {
-  media:  ["/", "/media", "/blogs"],
-  events: ["/", "/media", "/events"],
+  programs:    [...SHARED_PAGES, "/events"],
+  editorial:   [...SHARED_PAGES, "/analytics", "/email-analytics", "/submissions", "/blogs", "/newsletter"],
+  dni:         [...SHARED_PAGES, "/spotlight"],
+  overall:     [...SHARED_PAGES, "/team"],
+  partnership: [...SHARED_PAGES, "/sponsors"],
+  electoral:   [...SHARED_PAGES, "/elections", "/voters", "/email-analytics"],
 };
 
 /**
@@ -81,8 +92,10 @@ export async function middleware(req: NextRequest) {
   // Role-based page access - only enforce on non-API page routes
   if (!pathname.startsWith("/api/") && !pathname.startsWith("/dev")) {
     if (!isPageAllowedForRole(pathname, session.role)) {
-      // Redirect unauthorised roles back to overview
-      return NextResponse.redirect(new URL("/", req.url));
+      // Redirect to last visited page, or overview as fallback
+      const lastPage = req.cookies.get("spe_last_page")?.value;
+      const fallback = lastPage && lastPage !== pathname && lastPage !== "/login" ? lastPage : "/";
+      return NextResponse.redirect(new URL(fallback, req.url));
     }
   }
 
@@ -91,6 +104,11 @@ export async function middleware(req: NextRequest) {
   res.headers.set("x-user-id", session.sub);
   res.headers.set("x-user-email", session.email);
   res.headers.set("x-user-role", session.role);
+
+  // Track last visited page for unauthorized redirect fallback
+  if (!pathname.startsWith("/api/") && pathname !== "/login") {
+    res.cookies.set("spe_last_page", pathname, { path: "/", httpOnly: true, sameSite: "lax", maxAge: 60 * 60 * 24 });
+  }
 
   return res;
 }

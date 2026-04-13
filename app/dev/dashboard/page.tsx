@@ -12,14 +12,42 @@ import {
   Check,
   Zap,
   Calendar,
-  Image as ImageIcon,
+  Newspaper,
+  UserCircle2,
+  Users,
+  Briefcase,
+  Vote,
   Loader2
 } from "lucide-react";
+
+type AdminRole = "admin" | "programs" | "editorial" | "dni" | "overall" | "partnership" | "electoral";
+
+const ADMIN_ROLES: AdminRole[] = ["admin", "programs", "editorial", "dni", "overall", "partnership", "electoral"];
+
+const ROLE_STYLES: Record<string, string> = {
+  admin:       "bg-blue-600 text-white",
+  programs:    "bg-orange-100 text-orange-600",
+  editorial:   "bg-purple-100 text-purple-600",
+  dni:         "bg-pink-100 text-pink-600",
+  overall:     "bg-emerald-100 text-emerald-600",
+  partnership: "bg-amber-100 text-amber-600",
+  electoral:   "bg-sky-100 text-sky-600",
+};
+
+const ROLE_ICONS: Record<string, React.ReactNode> = {
+  admin:       <Zap size={10} />,
+  programs:    <Calendar size={10} />,
+  editorial:   <Newspaper size={10} />,
+  dni:         <UserCircle2 size={10} />,
+  overall:     <Users size={10} />,
+  partnership: <Briefcase size={10} />,
+  electoral:   <Vote size={10} />,
+};
 
 interface AdminUser {
   id: string;
   email: string;
-  role: "admin" | "media" | "events";
+  role: AdminRole;
   created_at: string;
 }
 
@@ -31,7 +59,7 @@ export default function DevDashboard() {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    role: "events" as "admin" | "media" | "events"
+    role: "programs" as AdminRole
   });
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -82,7 +110,7 @@ export default function DevDashboard() {
       const newUser = await res.json();
       setUsers([newUser, ...users]);
       setShowAddModal(false);
-      setFormData({ email: "", password: "", role: "events" });
+      setFormData({ email: "", password: "", role: "programs" });
     } catch {
       setFormError("Connection error");
     } finally {
@@ -192,14 +220,8 @@ export default function DevDashboard() {
                 <tr key={user.id} className="group hover:bg-gray-50/50 transition-all">
                   <td className="px-10 py-6 font-bold text-gray-900 text-sm">{user.email}</td>
                   <td className="px-10 py-6">
-                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                      user.role === 'admin' ? "bg-blue-600 text-white" :
-                      user.role === 'media' ? "bg-purple-100 text-purple-600" :
-                      "bg-orange-100 text-orange-600"
-                    }`}>
-                      {user.role === 'admin' && <Zap size={10} />}
-                      {user.role === 'media' && <ImageIcon size={10} />}
-                      {user.role === 'events' && <Calendar size={10} />}
+                    <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${ROLE_STYLES[user.role] || "bg-gray-100 text-gray-600"}`}>
+                      {ROLE_ICONS[user.role]}
                       {user.role}
                     </span>
                   </td>
@@ -275,8 +297,8 @@ export default function DevDashboard() {
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Role</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['admin', 'media', 'events'] as const).map((r) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {ADMIN_ROLES.map((r) => (
                       <button
                         key={r}
                         onClick={() => setFormData({...formData, role: r})}

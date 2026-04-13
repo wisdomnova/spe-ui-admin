@@ -176,7 +176,7 @@ export default function AnalyticsPage() {
                 value={
                   data.devices.length
                     ? data.devices.sort((a, b) => b.count - a.count)[0].device
-                    : "—"
+                    : "-"
                 }
                 icon={<Monitor size={20} />}
                 color="purple"
