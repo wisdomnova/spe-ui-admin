@@ -7,22 +7,24 @@ import { processQueue } from "@/lib/mailer";
  *
  * Processes pending emails from the queue.
  * Can be called:
- *   - By a Vercel Cron job (with CRON_SECRET header)
+ *   - By a Vercel/Supabase Cron (with secret in header or query param)
  *   - By an admin manually from the UI
  *
  * Query params:
  *   limit  – max emails to process in this batch (default 50)
+ *   key    – cron secret (alternative to header auth)
  */
 export async function POST(req: NextRequest) {
   try {
-    // Auth: either admin session or cron secret
+    // Auth: cron secret (header or query param) or admin session
     const cronSecret =
       req.headers.get("x-cron-secret") ||
-      req.headers.get("authorization")?.replace("Bearer ", "");
+      req.headers.get("authorization")?.replace("Bearer ", "") ||
+      req.nextUrl.searchParams.get("key");
     const expectedSecret = process.env.CRON_SECRET;
 
     if (cronSecret && expectedSecret && cronSecret === expectedSecret) {
-      // Authorized via cron secret or Vercel Cron
+      // Authorized via cron secret
     } else {
       const session = await getSession();
       if (!session) {
