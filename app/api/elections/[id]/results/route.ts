@@ -51,6 +51,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
       const posCandidates = candidates.filter((c) => c.position_id === pos.id);
       const posVotes = votes.filter((v) => v.position_id === pos.id);
       const totalPosVotes = posVotes.length;
+      const noneOfAboveVotes = posVotes.filter((v) => !v.candidate_id).length;
 
       const candidateResults = posCandidates
         .map((c) => {
@@ -64,6 +65,18 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
           };
         })
         .sort((a, b) => b.votes - a.votes);
+
+      if (noneOfAboveVotes > 0 || totalPosVotes === 0) {
+        candidateResults.push({
+          id: "none_of_above",
+          name: "None of the above",
+          image_url: null,
+          votes: noneOfAboveVotes,
+          percentage: totalPosVotes > 0 ? Math.round((noneOfAboveVotes / totalPosVotes) * 100) : 0,
+        });
+      }
+
+      candidateResults.sort((a, b) => b.votes - a.votes);
 
       const leader = candidateResults.length > 0 && candidateResults[0].votes > 0 ? candidateResults[0] : null;
       // Check if there's a tie for the lead

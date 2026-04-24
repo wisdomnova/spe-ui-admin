@@ -59,3 +59,39 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+/**
+ * PATCH /api/elections/[id]/candidates - update a candidate
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json();
+    const candidateId = body.candidate_id;
+    if (!candidateId) return NextResponse.json({ error: "candidate_id required" }, { status: 400 });
+
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (body.position_id !== undefined) updates.position_id = body.position_id;
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.matric_number !== undefined) updates.matric_number = body.matric_number || null;
+    if (body.image_url !== undefined) updates.image_url = body.image_url || null;
+    if (body.manifesto !== undefined) updates.manifesto = body.manifesto || null;
+
+    const { data, error } = await supabase
+      .from("election_candidates")
+      .update(updates)
+      .eq("id", candidateId)
+      .select()
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
