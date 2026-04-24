@@ -28,8 +28,12 @@ import {
   RefreshCw,
   ToggleLeft,
   ToggleRight,
+  Image as ImageIcon,
+  Upload,
+  FileDown,
 } from "lucide-react";
 import VoterPicker from "@/components/VoterPicker";
+import MediaPickerModal from "@/components/cms/MediaPickerModal";
 
 /* ── Types ── */
 interface Election {
@@ -63,6 +67,19 @@ interface Candidate {
   matric_number: string | null;
   image_url: string | null;
   manifesto: string | null;
+}
+
+interface MediaFile {
+  id: string;
+  name: string;
+  url: string;
+}
+
+interface CandidateDraft {
+  id: string;
+  name: string;
+  image_url: string;
+  bio: string;
 }
 
 interface Voter {
@@ -803,24 +820,76 @@ function PositionsTab({ electionId, positions, onRefresh }: { electionId: string
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [adding, setAdding] = useState(false);
+  const [items, setItems] = useState<Position[]>(positions);
+  const [editing, setEditing] = useState<Position | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  useEffect(() => {
+    setItems(positions);
+  }, [positions]);
 
   const handleAdd = async () => {
     if (!title.trim()) return;
     setAdding(true);
-    await fetch(`/api/elections/${electionId}/positions`, {
+    const res = await fetch(`/api/elections/${electionId}/positions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, sort_order: positions.length }),
+      body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, sort_order: items.length }),
     });
-    setTitle("");
-    setDesc("");
+    if (res.ok) {
+      const created = await res.json();
+      setItems((prev) => [...prev, created]);
+      setTitle("");
+      setDesc("");
+      onRefresh();
+    }
     setAdding(false);
-    onRefresh();
   };
 
   const handleDelete = async (positionId: string) => {
     if (!confirm("Delete this position and all its candidates?")) return;
-    await fetch(`/api/elections/${electionId}/positions?position_id=${positionId}`, { method: "DELETE" });
+    const prevItems = items;
+    setItems((prev) => prev.filter((pos) => pos.id !== positionId));
+    const res = await fetch(`/api/elections/${electionId}/positions?position_id=${positionId}`, { method: "DELETE" });
+    if (!res.ok) {
+      setItems(prevItems);
+      return;
+    }
+    onRefresh();
+  };
+
+  const openEdit = (pos: Position) => {
+    setEditing(pos);
+    setEditTitle(pos.title);
+    setEditDesc(pos.description || "");
+  };
+
+  const handleEditSave = async () => {
+    if (!editing || !editTitle.trim()) return;
+    setSavingEdit(true);
+    const payload = {
+      position_id: editing.id,
+      title: editTitle.trim(),
+      description: editDesc.trim() || null,
+    };
+    const prevItems = items;
+    setItems((prev) =>
+      prev.map((pos) => (pos.id === editing.id ? { ...pos, title: payload.title, description: payload.description } : pos))
+    );
+    const res = await fetch(`/api/elections/${electionId}/positions`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      setItems(prevItems);
+      setSavingEdit(false);
+      return;
+    }
+    setEditing(null);
+    setSavingEdit(false);
     onRefresh();
   };
 
@@ -853,35 +922,107 @@ function PositionsTab({ electionId, positions, onRefresh }: { electionId: string
             Add
           </button>
         </div>
+        {items.length > 0 && (
+          <p className="text-xs text-gray-400 font-medium mt-3">
+            Use the edit and delete actions on each position card to manage existing positions.
+          </p>
+        )}
       </div>
 
       {/* Positions list */}
-      {positions.length === 0 ? (
+      {items.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
           <Briefcase size={32} className="mx-auto text-gray-200 mb-3" />
           <p className="text-gray-400 font-bold text-sm">No positions added yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {positions.map((pos, i) => (
+          {items.map((pos, i) => (
             <div key={pos.id} className="bg-white p-6 rounded-[1.5rem] border border-gray-50 shadow-sm group">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black text-gray-300">#{i + 1}</span>
                   <h4 className="font-bold text-gray-900">{pos.title}</h4>
                 </div>
-                <button
-                  onClick={() => handleDelete(pos.id)}
-                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openEdit(pos)}
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                    title="Edit position"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(pos.id)}
+                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all"
+                    title="Delete position"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
               {pos.description && <p className="text-xs text-gray-400 font-medium">{pos.description}</p>}
             </div>
           ))}
         </div>
       )}
+
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[2rem] p-8 w-full max-w-lg shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-xl font-black text-gray-900">Edit Position</h3>
+                <button onClick={() => setEditing(null)} className="text-gray-400 hover:text-gray-600">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Position Title *</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Description</label>
+                  <textarea
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setEditing(null)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  disabled={!editTitle.trim() || savingEdit}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -898,82 +1039,209 @@ function CandidatesTab({
   candidates: Candidate[];
   onRefresh: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [matric, setMatric] = useState("");
+  const [items, setItems] = useState<Candidate[]>(candidates);
+  const [search, setSearch] = useState("");
+  const [positionFilter, setPositionFilter] = useState("all");
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
   const [positionId, setPositionId] = useState(positions[0]?.id || "");
-  const [adding, setAdding] = useState(false);
+  const [drafts, setDrafts] = useState<CandidateDraft[]>([
+    { id: crypto.randomUUID(), name: "", image_url: "", bio: "" },
+  ]);
+  const [activeMediaDraftId, setActiveMediaDraftId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const handleAdd = async () => {
-    if (!name.trim() || !positionId) return;
-    setAdding(true);
-    await fetch(`/api/elections/${electionId}/candidates`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), matric_number: matric.trim() || null, position_id: positionId }),
-    });
-    setName("");
-    setMatric("");
-    setAdding(false);
+  useEffect(() => {
+    setItems(candidates);
+  }, [candidates]);
+
+  useEffect(() => {
+    if (!positionId && positions[0]?.id) {
+      setPositionId(positions[0].id);
+    }
+  }, [positions, positionId]);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setPositionId(positions[0]?.id || "");
+    setDrafts([{ id: crypto.randomUUID(), name: "", image_url: "", bio: "" }]);
+    setActiveMediaDraftId(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setShowModal(true);
+  };
+
+  const openEditModal = (candidate: Candidate) => {
+    setEditingId(candidate.id);
+    setPositionId(candidate.position_id);
+    setDrafts([
+      {
+        id: crypto.randomUUID(),
+        name: candidate.name,
+        image_url: candidate.image_url || "",
+        bio: candidate.manifesto || "",
+      },
+    ]);
+    setShowModal(true);
+  };
+
+  const addDraftRow = () => {
+    setDrafts((prev) => [...prev, { id: crypto.randomUUID(), name: "", image_url: "", bio: "" }]);
+  };
+
+  const removeDraftRow = (draftId: string) => {
+    setDrafts((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== draftId)));
+  };
+
+  const updateDraft = (draftId: string, patch: Partial<CandidateDraft>) => {
+    setDrafts((prev) => prev.map((row) => (row.id === draftId ? { ...row, ...patch } : row)));
+  };
+
+  const handleSave = async () => {
+    if (!positionId) return;
+    setSaving(true);
+    const validDrafts = drafts
+      .map((row) => ({
+        ...row,
+        name: row.name.trim(),
+        image_url: row.image_url.trim(),
+        bio: row.bio.trim(),
+      }))
+      .filter((row) => row.name);
+
+    if (!editingId) {
+      if (validDrafts.length === 0) {
+        setSaving(false);
+        return;
+      }
+      const createRequests = validDrafts.map((row) =>
+        fetch(`/api/elections/${electionId}/candidates`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            position_id: positionId,
+            name: row.name,
+            image_url: row.image_url || null,
+            manifesto: row.bio || null,
+          }),
+        })
+      );
+      const results = await Promise.all(createRequests);
+      if (!results.every((res) => res.ok)) {
+        setSaving(false);
+        return;
+      }
+      const createdItems = await Promise.all(results.map((res) => res.json()));
+      setItems((prev) => [...prev, ...createdItems]);
+    } else {
+      const single = validDrafts[0];
+      if (!single) {
+        setSaving(false);
+        return;
+      }
+      const prevItems = items;
+      const patch = {
+        position_id: positionId,
+        name: single.name,
+        image_url: single.image_url || null,
+        manifesto: single.bio || null,
+      };
+      setItems((prev) => prev.map((cand) => (cand.id === editingId ? { ...cand, ...patch } : cand)));
+      const res = await fetch(`/api/elections/${electionId}/candidates`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidate_id: editingId, ...patch }),
+      });
+      if (!res.ok) {
+        setItems(prevItems);
+        setSaving(false);
+        return;
+      }
+    }
+    setSaving(false);
+    setShowModal(false);
+    resetForm();
     onRefresh();
   };
 
   const handleDelete = async (candidateId: string) => {
     if (!confirm("Remove this candidate?")) return;
-    await fetch(`/api/elections/${electionId}/candidates?candidate_id=${candidateId}`, { method: "DELETE" });
+    const prevItems = items;
+    setItems((prev) => prev.filter((cand) => cand.id !== candidateId));
+    const res = await fetch(`/api/elections/${electionId}/candidates?candidate_id=${candidateId}`, { method: "DELETE" });
+    if (!res.ok) {
+      setItems(prevItems);
+      return;
+    }
     onRefresh();
   };
 
   // Group candidates by position
-  const grouped = positions.map((pos) => ({
+  const normalizedSearch = search.trim().toLowerCase();
+  const grouped = positions
+    .filter((pos) => positionFilter === "all" || pos.id === positionFilter)
+    .map((pos) => ({
     position: pos,
-    candidates: candidates.filter((c) => c.position_id === pos.id),
+    candidates: items.filter((c) => {
+      if (c.position_id !== pos.id) return false;
+      if (!normalizedSearch) return true;
+      return c.name.toLowerCase().includes(normalizedSearch) || (c.manifesto || "").toLowerCase().includes(normalizedSearch);
+    }),
   }));
+
+  const selectedPositionCandidates = useMemo(
+    () => items.filter((cand) => cand.position_id === positionId),
+    [items, positionId]
+  );
 
   return (
     <div className="space-y-6">
       {/* Add form */}
       <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-100 shadow-sm">
-        <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4">Add Candidate</h3>
-        {positions.length === 0 ? (
-          <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-4 rounded-xl text-sm font-medium">
-            <AlertCircle size={16} />
-            Add positions first before adding candidates.
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Candidates</h3>
+            <p className="text-xs text-gray-400 font-medium mt-1">Add and manage candidates per position.</p>
           </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-2">
             <select
-              value={positionId}
-              onChange={(e) => setPositionId(e.target.value)}
-              className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 outline-none"
+              value={positionFilter}
+              onChange={(e) => setPositionFilter(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 focus:border-blue-500 outline-none"
             >
+              <option value="all">All Positions</option>
               {positions.map((p) => (
                 <option key={p.id} value={p.id}>{p.title}</option>
               ))}
             </select>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Candidate name *"
-              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            />
-            <input
-              type="text"
-              value={matric}
-              onChange={(e) => setMatric(e.target.value)}
-              placeholder="Matric number"
-              className="w-40 px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            />
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search candidates"
+                className="pl-8 pr-3 py-2.5 rounded-xl border border-gray-200 text-xs font-medium focus:border-blue-500 outline-none"
+              />
+            </div>
             <button
-              onClick={handleAdd}
-              disabled={!name.trim() || !positionId || adding}
-              className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50 transition-all shrink-0"
+              onClick={openCreateModal}
+              disabled={positions.length === 0}
+              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50"
             >
-              {adding ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-              Add
+              <UserPlus size={14} /> Add Candidate
             </button>
           </div>
-        )}
+        </div>
+        {positions.length === 0 ? (
+          <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-4 rounded-xl text-sm font-medium mt-4">
+            <AlertCircle size={16} />
+            Add positions first before adding candidates.
+          </div>
+        ) : null}
       </div>
 
       {/* Candidates grouped by position */}
@@ -991,24 +1259,36 @@ function CandidatesTab({
           ) : (
             <div className="space-y-2">
               {posCandidates.map((c) => (
-                <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-colors group">
+                <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-black text-sm shrink-0">
-                      {c.name.charAt(0).toUpperCase()}
-                    </div>
+                    {c.image_url ? (
+                      <img src={c.image_url} alt={c.name} className="w-10 h-10 rounded-xl object-cover border border-gray-100 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-black text-sm shrink-0">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-gray-900 truncate">{c.name}</p>
-                      {c.matric_number && (
-                        <p className="text-[11px] font-medium text-gray-400">{c.matric_number}</p>
-                      )}
+                      <p className="text-[11px] font-medium text-gray-400 truncate">{c.manifesto || "No bio yet"}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    className="p-2 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openEditModal(c)}
+                      className="p-2 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                      title="Edit candidate"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="p-2 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all"
+                      title="Delete candidate"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1022,6 +1302,199 @@ function CandidatesTab({
           <p className="text-gray-400 font-bold text-sm">Add positions first to manage candidates.</p>
         </div>
       )}
+
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/30 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-black text-gray-900">{editingId ? "Edit Candidate" : "Add Candidate"}</h3>
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Election Position *</label>
+                  <select
+                    value={positionId}
+                    onChange={(e) => setPositionId(e.target.value)}
+                    className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 outline-none"
+                  >
+                    {positions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {!editingId && (
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Existing Candidates in This Position</p>
+                    {selectedPositionCandidates.length === 0 ? (
+                      <p className="text-xs text-gray-400 font-medium">No candidates added for this position yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedPositionCandidates.map((cand) => (
+                          <div key={`existing-${cand.id}`} className="flex items-center gap-2 text-xs text-gray-600 font-medium">
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                            {cand.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {drafts.map((draft, idx) => (
+                    <div key={draft.id} className="border border-gray-100 rounded-2xl p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-black text-gray-500 uppercase tracking-widest">
+                          {editingId ? "Candidate Details" : `Candidate ${idx + 1}`}
+                        </p>
+                        {!editingId && (
+                          <button
+                            type="button"
+                            onClick={() => removeDraftRow(draft.id)}
+                            className="text-[11px] font-bold text-red-400 hover:text-red-600"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Name of Candidate *</label>
+                        <input
+                          type="text"
+                          value={draft.name}
+                          onChange={(e) => updateDraft(draft.id, { name: e.target.value })}
+                          placeholder="Enter candidate name"
+                          className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Image</label>
+                        {draft.image_url ? (
+                          <div className="relative group w-full h-36 rounded-2xl overflow-hidden border border-gray-100 mb-3">
+                            <img src={draft.image_url} alt="Candidate preview" className="w-full h-full object-cover" />
+                            <button
+                              onClick={() => updateDraft(draft.id, { image_url: "" })}
+                              className="absolute top-2 right-2 bg-white/90 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                            >
+                              <X size={14} className="text-red-500" />
+                            </button>
+                          </div>
+                        ) : null}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveMediaDraftId(draft.id);
+                              setShowMediaPicker(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest text-blue-600 hover:bg-blue-100 transition-colors"
+                          >
+                            <ImageIcon size={14} />
+                            Pick from Library
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = prompt("Paste image URL");
+                              if (url) updateDraft(draft.id, { image_url: url });
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-100 transition-colors"
+                          >
+                            <Upload size={14} />
+                            Paste URL
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bio</label>
+                        <textarea
+                          value={draft.bio}
+                          onChange={(e) => updateDraft(draft.id, { bio: e.target.value })}
+                          rows={4}
+                          placeholder="Candidate bio or manifesto..."
+                          className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {!editingId && (
+                    <button
+                      type="button"
+                      onClick={addDraftRow}
+                      className="w-full border border-dashed border-blue-200 bg-blue-50/60 text-blue-700 rounded-xl py-2.5 text-xs font-black uppercase tracking-widest hover:bg-blue-50 transition-colors"
+                    >
+                      + Add Another Candidate Row
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={
+                    !positionId ||
+                    drafts.every((row) => !row.name.trim()) ||
+                    saving
+                  }
+                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                  {editingId ? "Save Changes" : "Add Candidates"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <MediaPickerModal
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={(file: MediaFile) => {
+          if (activeMediaDraftId) {
+            updateDraft(activeMediaDraftId, { image_url: file.url });
+          }
+          setShowMediaPicker(false);
+          setActiveMediaDraftId(null);
+        }}
+      />
     </div>
   );
 }
@@ -1253,6 +1726,8 @@ function ResultsTab({ electionId }: { electionId: string }) {
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPositionId, setSelectedPositionId] = useState<string>("");
+  const [resultsView, setResultsView] = useState<"chart" | "list">("chart");
 
   const fetchResults = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
@@ -1264,6 +1739,109 @@ function ResultsTab({ electionId }: { electionId: string }) {
     setRefreshing(false);
   };
 
+  const exportResultsPdf = () => {
+    if (!data) return;
+    const electionDate = data.election.election_date ? formatDateNice(data.election.election_date) : "Not set";
+    const votingPeriod =
+      data.election.election_date && data.election.start_time && data.election.end_time
+        ? `${formatDateNice(data.election.election_date)}, ${formatTime12(data.election.start_time.slice(0, 5))} - ${formatTime12(data.election.end_time.slice(0, 5))}`
+        : "Not set";
+
+    const perPositionSections = data.positions
+      .map((pos) => {
+        const rows = (pos.candidates.length ? pos.candidates : [{ id: "none", name: "No candidates yet", image_url: null, votes: 0, percentage: 0 }])
+          .map(
+            (cand, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td>${cand.name}</td>
+                <td>${cand.votes}</td>
+                <td>${cand.percentage}%</td>
+              </tr>
+            `
+          )
+          .join("");
+
+        return `
+          <section class="page-break">
+            <h2>${pos.title.toUpperCase()} ELECTION RESULT</h2>
+            <p><strong>Total Votes:</strong> ${pos.total_votes}</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>S/N</th>
+                  <th>Candidate Name</th>
+                  <th>Votes Received</th>
+                  <th>Percentage (%)</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </section>
+        `;
+      })
+      .join("");
+
+    const html = `
+      <html>
+        <head>
+          <title>Election Result - ${data.election.title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 28px; color: #111827; }
+            h1 { font-size: 24px; margin-bottom: 6px; }
+            h2 { font-size: 16px; margin: 18px 0 8px; }
+            .muted { color: #6b7280; margin-bottom: 20px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
+            th { background: #f3f4f6; }
+            .page-break { page-break-before: always; }
+            @media print {
+              body { padding: 14px; }
+              .page-break:first-of-type { page-break-before: auto; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>ELECTION RESULT</h1>
+          <p class="muted">${data.election.title}</p>
+          <div class="card">
+            <h2>ELECTION OVERVIEW</h2>
+            <p><strong>Election Title:</strong> ${data.election.title}</p>
+            <p><strong>Election Date:</strong> ${electionDate}</p>
+            <p><strong>Total Registered Voters:</strong> ${data.turnout.total_voters}</p>
+            <p><strong>Voter Turnout:</strong> ${data.turnout.voted}</p>
+            <p><strong>Voting Period:</strong> ${votingPeriod}</p>
+          </div>
+          ${perPositionSections || `<p>No positions configured yet.</p>`}
+        </body>
+      </html>
+    `;
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    };
+  };
+
   useEffect(() => {
     fetchResults();
     // Auto-refresh every 30 seconds
@@ -1271,6 +1849,17 @@ function ResultsTab({ electionId }: { electionId: string }) {
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [electionId]);
+
+  const syncPositions = data?.positions || [];
+  useEffect(() => {
+    if (!syncPositions.length) {
+      setSelectedPositionId("");
+      return;
+    }
+    if (!selectedPositionId || !syncPositions.some((pos) => pos.id === selectedPositionId)) {
+      setSelectedPositionId(syncPositions[0].id);
+    }
+  }, [syncPositions, selectedPositionId]);
 
   if (loading) {
     return (
@@ -1291,6 +1880,21 @@ function ResultsTab({ electionId }: { electionId: string }) {
 
   const { turnout, positions, timeline, total_votes } = data;
   const maxTimelineCount = Math.max(...timeline.map((t) => t.count), 1);
+  const selectedPosition = positions.find((pos) => pos.id === selectedPositionId) || positions[0] || null;
+  const displayCandidates = selectedPosition?.candidates?.length
+    ? selectedPosition.candidates
+    : [
+        {
+          id: "placeholder",
+          name: "No candidates yet",
+          image_url: null,
+          votes: 0,
+          percentage: 0,
+        },
+      ];
+  const maxSelectedVotes = Math.max(...displayCandidates.map((cand) => cand.votes), 1);
+  const chartMaxValue = Math.max(maxSelectedVotes, 5);
+  const chartTicks = [chartMaxValue, Math.round((chartMaxValue * 3) / 4), Math.round(chartMaxValue / 2), Math.round(chartMaxValue / 4), 0];
 
   return (
     <div className="space-y-6">
@@ -1299,13 +1903,21 @@ function ResultsTab({ electionId }: { electionId: string }) {
         <p className="text-xs text-gray-400 font-medium">
           Results auto-refresh every 30s. All data is anonymous.
         </p>
-        <button
-          onClick={() => fetchResults(true)}
-          disabled={refreshing}
-          className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
-        >
-          <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} /> Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportResultsPdf}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+          >
+            <FileDown size={14} /> Export PDF
+          </button>
+          <button
+            onClick={() => fetchResults(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Turnout Overview */}
@@ -1349,89 +1961,208 @@ function ResultsTab({ electionId }: { electionId: string }) {
         </div>
       </div>
 
-      {/* Per-Position Results */}
-      {positions.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
-          <BarChart3 size={32} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-gray-400 font-bold text-sm">No positions configured</p>
-          <p className="text-gray-300 text-xs mt-1">Add positions and candidates to see results.</p>
-        </div>
-      ) : (
-        positions.map((pos) => (
-          <div key={pos.id} className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-50 shadow-sm">
-            {/* Position header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <Briefcase size={16} className="text-blue-500" />
-                <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">{pos.title}</h3>
-                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
-                  {pos.total_votes} vote{pos.total_votes !== 1 ? "s" : ""}
-                </span>
-              </div>
-              {pos.leader && !pos.is_tied && (
-                <span className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full">
-                  <Trophy size={12} /> {pos.leader.name} leading
-                </span>
-              )}
-              {pos.is_tied && pos.total_votes > 0 && (
-                <span className="flex items-center gap-1.5 text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
-                  <Minus size={12} /> Tied
-                </span>
-              )}
-            </div>
+      {/* Position pills + selected-position results */}
+      <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-50 shadow-sm">
+        <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <Briefcase size={14} className="text-blue-500" /> Positions
+        </h3>
+        {positions.length === 0 ? (
+          <p className="text-sm text-gray-400 font-medium">No positions configured yet.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {positions.map((pos) => (
+              <button
+                key={pos.id}
+                onClick={() => setSelectedPositionId(pos.id)}
+                className={`px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all ${
+                  selectedPosition?.id === pos.id
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                {pos.title}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
-            {/* Candidate bars */}
-            {pos.candidates.length === 0 ? (
-              <p className="text-sm text-gray-300 font-medium py-4">No candidates for this position.</p>
-            ) : (
-              <div className="space-y-4">
-                {pos.candidates.map((cand, idx) => {
-                  const isLeader = pos.leader?.id === cand.id && !pos.is_tied;
-                  return (
-                    <div key={cand.id}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
-                            isLeader ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-gray-100 text-gray-500" : "bg-gray-50 text-gray-400"
-                          }`}>
-                            {cand.image_url ? (
-                              <img src={cand.image_url} alt="" className="w-8 h-8 rounded-lg object-cover" />
-                            ) : (
-                              cand.name.charAt(0).toUpperCase()
-                            )}
-                          </div>
-                          <span className={`text-sm font-bold truncate ${isLeader ? "text-gray-900" : "text-gray-600"}`}>
-                            {cand.name}
-                            {isLeader && <Trophy size={12} className="inline ml-1.5 text-amber-500" />}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span className="text-sm font-black text-gray-900">{cand.votes}</span>
-                          <span className="text-xs font-bold text-gray-400 w-10 text-right">{cand.percentage}%</span>
-                        </div>
-                      </div>
-                      <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full rounded-full ${
-                            isLeader
-                              ? "bg-gradient-to-r from-amber-400 to-amber-500"
-                              : idx === 1
-                                ? "bg-blue-400"
-                                : "bg-gray-300"
-                          }`}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${cand.percentage}%` }}
-                          transition={{ duration: 0.6, delay: idx * 0.1, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-50 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+            <BarChart3 size={14} className="text-blue-500" />
+            {selectedPosition ? `${selectedPosition.title} Results` : "Candidate Results"}
+          </h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100 p-1 rounded-xl">
+              <button
+                onClick={() => setResultsView("chart")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  resultsView === "chart" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                Chart
+              </button>
+              <button
+                onClick={() => setResultsView("list")}
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                  resultsView === "list" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
+                }`}
+              >
+                List
+              </button>
+            </div>
+            {selectedPosition && (
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full">
+                {selectedPosition.total_votes} vote{selectedPosition.total_votes !== 1 ? "s" : ""}
+              </span>
             )}
           </div>
-        ))
-      )}
+        </div>
+
+        {selectedPosition && selectedPosition.candidates.length > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2">
+            {selectedPosition.candidates.map((cand) => (
+              <div
+                key={`pill-candidate-${cand.id}`}
+                className={`flex items-center gap-2 rounded-full pl-1.5 pr-3 py-1 border ${
+                  cand.id === "none_of_above"
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-gray-50 border-gray-100"
+                }`}
+              >
+                {cand.id === "none_of_above" ? (
+                  <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
+                    Ø
+                  </div>
+                ) : cand.image_url ? (
+                  <img src={cand.image_url} alt={cand.name} className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
+                    {cand.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className={`text-[11px] font-bold ${cand.id === "none_of_above" ? "text-amber-700" : "text-gray-600"}`}>
+                  {cand.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {resultsView === "chart" ? (
+          <div className="border border-gray-100 rounded-2xl p-4 sm:p-5">
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Votes</div>
+            <div className="grid grid-cols-[40px_1fr] gap-3">
+              <div className="h-64 flex flex-col justify-between text-[10px] font-bold text-gray-400">
+                {chartTicks.map((tick, idx) => (
+                  <span key={`tick-${idx}`}>{tick}</span>
+                ))}
+              </div>
+              <div className="relative h-64 border-l border-b border-gray-200">
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                  {chartTicks.map((_, idx) => (
+                    <div key={`gridline-${idx}`} className="border-t border-gray-100" />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-end justify-around gap-3 px-3 pb-2">
+                  {displayCandidates.map((cand, idx) => {
+                    const isPlaceholder = cand.id === "placeholder";
+                    const isNoneOfAbove = cand.id === "none_of_above";
+                    const barHeight = Math.max((cand.votes / chartMaxValue) * 100, 3);
+                    return (
+                      <div key={`${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center justify-end">
+                        <span
+                          className={`text-[11px] font-black mb-1 ${
+                            isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-700"
+                          }`}
+                        >
+                          {cand.votes}
+                        </span>
+                        <div className="w-full h-44 flex items-end relative group">
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap">
+                            {cand.name}: {cand.votes} vote{cand.votes !== 1 ? "s" : ""} ({cand.percentage}%)
+                          </div>
+                          <motion.div
+                            className={`w-full rounded-t-md ${
+                              isPlaceholder
+                                ? "bg-gray-300"
+                                : isNoneOfAbove
+                                  ? "bg-amber-500"
+                                  : "bg-blue-500"
+                            }`}
+                            initial={{ height: 0 }}
+                            animate={{ height: `${barHeight}%` }}
+                            transition={{ duration: 0.6, delay: idx * 0.08, ease: "easeOut" }}
+                          />
+                        </div>
+                        <div className="mt-2 flex flex-col items-center gap-1">
+                          {isPlaceholder ? (
+                            <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
+                          ) : isNoneOfAbove ? (
+                            <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
+                              Ø
+                            </div>
+                          ) : cand.image_url ? (
+                            <img src={cand.image_url} alt={cand.name} className="w-6 h-6 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
+                              {cand.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span
+                            className={`text-[10px] font-bold text-center leading-tight ${
+                              isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
+                            }`}
+                          >
+                            {cand.name}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="border border-gray-100 rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 border-b border-gray-100 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              <span>Candidate</span>
+              <span>Votes</span>
+              <span>Percent</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {displayCandidates.map((cand, idx) => {
+                const isPlaceholder = cand.id === "placeholder";
+                const isNoneOfAbove = cand.id === "none_of_above";
+                return (
+                  <div key={`${cand.id}-list-${idx}`} className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 items-center">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {isPlaceholder ? (
+                        <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
+                      ) : isNoneOfAbove ? (
+                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">Ø</div>
+                      ) : cand.image_url ? (
+                        <img src={cand.image_url} alt={cand.name} className="w-8 h-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
+                          {cand.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={`text-sm font-bold truncate ${isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-700"}`}>
+                        {cand.name}
+                      </span>
+                    </div>
+                    <span className={`text-sm font-black text-right ${isNoneOfAbove ? "text-amber-700" : "text-gray-800"}`}>{cand.votes}</span>
+                    <span className="text-xs font-bold text-gray-500 text-right">{cand.percentage}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Voting Timeline */}
       {timeline.length > 0 && (
@@ -1469,12 +2200,11 @@ function ResultsTab({ electionId }: { electionId: string }) {
         </div>
       )}
 
-      {/* Empty state when no votes at all */}
-      {total_votes === 0 && positions.length > 0 && (
-        <div className="text-center py-12 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
-          <Vote size={40} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-gray-400 font-bold">No votes cast yet</p>
-          <p className="text-gray-300 text-sm mt-1">Results will appear here as voters submit their ballots.</p>
+      {/* Empty state note when no votes at all */}
+      {total_votes === 0 && (
+        <div className="text-center py-8 bg-white rounded-[2rem] border border-dashed border-gray-200">
+          <p className="text-gray-400 font-bold text-sm">No votes cast yet.</p>
+          <p className="text-gray-300 text-xs mt-1">The chart stays visible and will update as ballots are submitted.</p>
         </div>
       )}
     </div>
