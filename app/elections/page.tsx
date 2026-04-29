@@ -146,11 +146,14 @@ function computeDisplayStatus(election: { status: string; election_date: string 
   const today = todayStr();
   const now = nowTimeStr();
 
+  const start = election.start_time.slice(0, 5);
+  const end = election.end_time.slice(0, 5);
+
   if (election.election_date > today) return "Scheduled";
   if (election.election_date < today) return "Completed";
   // election_date === today
-  if (now < election.start_time) return "Scheduled";
-  if (now >= election.start_time && now < election.end_time) return "Ongoing";
+  if (now < start) return "Scheduled";
+  if (now >= start && now < end) return "Ongoing";
   return "Completed";
 }
 
