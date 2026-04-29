@@ -90,6 +90,15 @@ export async function processQueue(limit = 50): Promise<{
   failed: number;
   remaining: number;
 }> {
+  // Recover stale rows that were left in "sending" due to crashed/timeout workers.
+  // We use created_at as a fallback timestamp since this table has no updated_at.
+  const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 minutes
+  await supabase
+    .from("email_queue")
+    .update({ status: "pending", error: "Recovered from stale sending state" })
+    .eq("status", "sending")
+    .lt("created_at", staleCutoff);
+
   // Atomically claim a batch: update pending → sending AND return claimed rows
   // This eliminates any race window between two concurrent cron calls
   const { data: emails, error } = await supabase.rpc("claim_email_batch", {

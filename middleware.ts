@@ -24,6 +24,8 @@ export async function middleware(req: NextRequest) {
     if (
       path === "/login" ||
       path === "/login/" ||
+      path === "/dev" ||
+      path === "/dev/" ||
       path.startsWith("/_next") ||
       path.startsWith("/api/auth/") ||
       path.includes(".")
@@ -41,6 +43,18 @@ export async function middleware(req: NextRequest) {
 
     /* ── API routes: 401, never redirect ── */
     if (path.startsWith("/api/") || path.startsWith("/api")) {
+      // Allow cron processor endpoint with valid cron secret (no session cookie needed)
+      if (path.startsWith("/api/email-queue/process")) {
+        const suppliedSecret =
+          req.headers.get("x-cron-secret") ||
+          req.headers.get("authorization")?.replace("Bearer ", "") ||
+          req.nextUrl.searchParams.get("key");
+        const expectedSecret = process.env.CRON_SECRET;
+        if (suppliedSecret && expectedSecret && suppliedSecret === expectedSecret) {
+          return NextResponse.next();
+        }
+      }
+
       if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }

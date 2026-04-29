@@ -34,6 +34,8 @@ import {
 } from "lucide-react";
 import VoterPicker from "@/components/VoterPicker";
 import MediaPickerModal from "@/components/cms/MediaPickerModal";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 /* ── Types ── */
 interface Election {
@@ -1739,107 +1741,103 @@ function ResultsTab({ electionId }: { electionId: string }) {
     setRefreshing(false);
   };
 
-  const exportResultsPdf = () => {
+  const exportResultsPdf = async () => {
     if (!data) return;
-    const electionDate = data.election.election_date ? formatDateNice(data.election.election_date) : "Not set";
-    const votingPeriod =
-      data.election.election_date && data.election.start_time && data.election.end_time
-        ? `${formatDateNice(data.election.election_date)}, ${formatTime12(data.election.start_time.slice(0, 5))} - ${formatTime12(data.election.end_time.slice(0, 5))}`
-        : "Not set";
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const totalPages = Math.max(2, data.positions.length + 1);
 
-    const perPositionSections = data.positions
-      .map((pos) => {
-        const rows = (pos.candidates.length ? pos.candidates : [{ id: "none", name: "No candidates yet", image_url: null, votes: 0, percentage: 0 }])
-          .map(
-            (cand, idx) => `
-              <tr>
-                <td>${idx + 1}</td>
-                <td>${cand.name}</td>
-                <td>${cand.votes}</td>
-                <td>${cand.percentage}%</td>
-              </tr>
-            `
-          )
-          .join("");
+    const logoUrl = `${window.location.origin}/spe-black.jpg`;
+    let logoDataUrl: string | null = null;
+    try {
+      const res = await fetch(logoUrl);
+      const blob = await res.blob();
+      logoDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ""));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      logoDataUrl = null;
+    }
 
-        return `
-          <section class="page-break">
-            <h2>${pos.title.toUpperCase()} ELECTION RESULT</h2>
-            <p><strong>Total Votes:</strong> ${pos.total_votes}</p>
-            <table>
-              <thead>
-                <tr>
-                  <th>S/N</th>
-                  <th>Candidate Name</th>
-                  <th>Votes Received</th>
-                  <th>Percentage (%)</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </section>
-        `;
-      })
-      .join("");
-
-    const html = `
-      <html>
-        <head>
-          <title>Election Result - ${data.election.title}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 28px; color: #111827; }
-            h1 { font-size: 24px; margin-bottom: 6px; }
-            h2 { font-size: 16px; margin: 18px 0 8px; }
-            .muted { color: #6b7280; margin-bottom: 20px; }
-            .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 12px; }
-            th { background: #f3f4f6; }
-            .page-break { page-break-before: always; }
-            @media print {
-              body { padding: 14px; }
-              .page-break:first-of-type { page-break-before: auto; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>ELECTION RESULT</h1>
-          <p class="muted">${data.election.title}</p>
-          <div class="card">
-            <h2>ELECTION OVERVIEW</h2>
-            <p><strong>Election Title:</strong> ${data.election.title}</p>
-            <p><strong>Election Date:</strong> ${electionDate}</p>
-            <p><strong>Total Registered Voters:</strong> ${data.turnout.total_voters}</p>
-            <p><strong>Voter Turnout:</strong> ${data.turnout.voted}</p>
-            <p><strong>Voting Period:</strong> ${votingPeriod}</p>
-          </div>
-          ${perPositionSections || `<p>No positions configured yet.</p>`}
-        </body>
-      </html>
-    `;
-
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    iframe.onload = () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
+    const drawFooter = (pageNum: number) => {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 24, { align: "center" });
     };
+
+    // Page 1: title-only cover
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(11, 58, 143);
+    pdf.setFontSize(34);
+    pdf.text("ELECTION RESULT", pageWidth / 2, pageHeight / 2 - 20, { align: "center" });
+    pdf.setFontSize(18);
+    pdf.setTextColor(51, 65, 85);
+    pdf.text(String(data.election.title || "Election"), pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
+    drawFooter(1);
+
+    // Pages 2..N: one position per page
+    const positionsForPdf =
+      data.positions.length > 0
+        ? data.positions
+        : [{ id: "empty", title: "Election Result", total_votes: 0, candidates: [{ id: "none", name: "No candidates yet", votes: 0, percentage: 0 }] as any }];
+
+    positionsForPdf.forEach((pos, idx) => {
+      pdf.addPage();
+
+      if (logoDataUrl) {
+        pdf.addImage(logoDataUrl, "JPEG", 40, 24, 82, 82);
+      }
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(11, 58, 143);
+      pdf.setFontSize(11);
+      pdf.text("SPE-UI", pageWidth - 40, 52, { align: "right" });
+      pdf.text("ELECTORAL COMMITTEE", pageWidth - 40, 67, { align: "right" });
+
+      const rows = (pos.candidates.length
+        ? pos.candidates
+        : [{ id: "none", name: "No candidates yet", votes: 0, percentage: 0 } as any]
+      ).map((cand: any, rowIdx: number) => [String(rowIdx + 1), String(cand.name), String(cand.votes), `${cand.percentage}%`]);
+
+      const estimatedTableHeight = 34 + rows.length * 24;
+      const blockHeight = 70 + estimatedTableHeight;
+      const startY = Math.max(170, (pageHeight - blockHeight) / 2);
+
+      pdf.setFontSize(18);
+      pdf.setTextColor(11, 58, 143);
+      pdf.text(`${String(pos.title).toUpperCase()} ELECTION RESULT`, pageWidth / 2, startY, { align: "center" });
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(51, 65, 85);
+      pdf.setFontSize(11);
+      pdf.text(`Total Votes: ${pos.total_votes}`, pageWidth / 2, startY + 24, { align: "center" });
+
+      autoTable(pdf, {
+        startY: startY + 40,
+        head: [["S/N", "CANDIDATE NAME", "VOTES RECEIVED", "PERCENTAGE (%)"]],
+        body: rows,
+        theme: "grid",
+        headStyles: { fillColor: [11, 58, 143], textColor: 255, fontStyle: "bold", fontSize: 10, halign: "center" },
+        bodyStyles: { fontSize: 10, textColor: [30, 41, 59], halign: "center" },
+        styles: { cellPadding: 6, lineColor: [203, 213, 225], lineWidth: 0.8, halign: "center" },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 48 },
+          1: { halign: "center" },
+          2: { halign: "center", cellWidth: 110 },
+          3: { halign: "center", cellWidth: 110 },
+        },
+        margin: { left: 40, right: 40 },
+      });
+
+      drawFooter(idx + 2);
+    });
+
+    const safeTitle = String(data.election.title || "Election-Result").replace(/[^a-z0-9-_]+/gi, "-");
+    pdf.save(`${safeTitle}-Election-Result.pdf`);
   };
 
   useEffect(() => {

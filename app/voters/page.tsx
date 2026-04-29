@@ -609,17 +609,17 @@ export default function VotersPage() {
                           <td className="px-6 py-3.5 font-medium text-gray-500">{voter.level || "-"}</td>
                           <td className="px-6 py-3.5 font-medium text-gray-500">{voter.department || "-"}</td>
                           <td className="px-6 py-3.5">
-                            <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-1 justify-end">
                               <button
                                 onClick={() => startEdit(voter)}
-                                className="p-2 rounded-lg text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                className="p-2 rounded-lg text-gray-500 hover:text-blue-700 hover:bg-blue-50 transition-all"
                                 title="Edit"
                               >
                                 <Pencil size={14} />
                               </button>
                               <button
                                 onClick={() => handleDeleteSingle(voter.id)}
-                                className="p-2 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all"
+                                className="p-2 rounded-lg text-gray-500 hover:text-red-700 hover:bg-red-50 transition-all"
                                 title="Delete"
                               >
                                 <Trash2 size={14} />

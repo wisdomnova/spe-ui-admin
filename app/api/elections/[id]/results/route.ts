@@ -69,7 +69,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
       if (noneOfAboveVotes > 0 || totalPosVotes === 0) {
         candidateResults.push({
           id: "none_of_above",
-          name: "None of the above",
+          name: "Void",
           image_url: null,
           votes: noneOfAboveVotes,
           percentage: totalPosVotes > 0 ? Math.round((noneOfAboveVotes / totalPosVotes) * 100) : 0,
