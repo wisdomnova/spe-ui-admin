@@ -5,6 +5,9 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.hostinger.com",
   port: parseInt(process.env.SMTP_PORT || "465", 10),
   secure: true,
+  connectionTimeout: 60000,
+  greetingTimeout: 30000,
+  socketTimeout: 60000,
   auth: {
     user: process.env.SMTP_USER || "info@speui.org",
     pass: process.env.SMTP_PASS || "",
