@@ -1749,7 +1749,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const totalPages = Math.max(2, data.positions.length + 1);
+    const totalPages = Math.max(3, data.positions.length + 2);
 
     const logoUrl = `${window.location.origin}/spe-black.jpg`;
     let logoDataUrl: string | null = null;
@@ -1773,6 +1773,31 @@ function ResultsTab({ electionId }: { electionId: string }) {
       pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 24, { align: "center" });
     };
 
+    const drawHeaderBrand = () => {
+      if (logoDataUrl) {
+        pdf.addImage(logoDataUrl, "JPEG", 40, 24, 82, 82);
+      }
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(11, 58, 143);
+      pdf.setFontSize(11);
+      pdf.text("SPE-UI", pageWidth - 40, 52, { align: "right" });
+      pdf.text("ELECTORAL COMMITTEE", pageWidth - 40, 67, { align: "right" });
+    };
+
+    const prettyDate = (() => {
+      if (!data.election.election_date) return "N/A";
+      const dt = new Date(data.election.election_date);
+      if (Number.isNaN(dt.getTime())) return String(data.election.election_date);
+      return dt.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    })();
+
+    const timeWindow = `${data.election.start_time || "N/A"} - ${data.election.end_time || "N/A"}`;
+
     // Page 1: title-only cover
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor(11, 58, 143);
@@ -1783,7 +1808,44 @@ function ResultsTab({ electionId }: { electionId: string }) {
     pdf.text(String(data.election.title || "Election"), pageWidth / 2, pageHeight / 2 + 20, { align: "center" });
     drawFooter(1);
 
-    // Pages 2..N: one position per page
+    // Page 2: Election Overview
+    pdf.addPage();
+    drawHeaderBrand();
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(11, 58, 143);
+    pdf.setFontSize(22);
+    pdf.text("ELECTION OVERVIEW", pageWidth / 2, 230, { align: "center" });
+
+    const overviewRows = [
+      ["Election Title:", String(data.election.title || "N/A")],
+      ["Election Date:", prettyDate],
+      ["Total Registered Voters:", String(data.turnout.total_voters ?? 0)],
+      ["Voter Turnout:", String(data.turnout.voted ?? 0)],
+      ["Voting Period:", timeWindow],
+    ];
+
+    autoTable(pdf, {
+      startY: 270,
+      body: overviewRows,
+      theme: "grid",
+      styles: {
+        fontSize: 11,
+        textColor: [30, 41, 59],
+        cellPadding: 8,
+        lineColor: [203, 213, 225],
+        lineWidth: 0.8,
+        halign: "left",
+      },
+      columnStyles: {
+        0: { fontStyle: "bold", textColor: [11, 58, 143], cellWidth: 180 },
+        1: { cellWidth: 315 },
+      },
+      margin: { left: 50, right: 50 },
+    });
+    drawFooter(2);
+
+    // Pages 3..N: one position per page
     const positionsForPdf =
       data.positions.length > 0
         ? data.positions
@@ -1791,15 +1853,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
 
     positionsForPdf.forEach((pos, idx) => {
       pdf.addPage();
-
-      if (logoDataUrl) {
-        pdf.addImage(logoDataUrl, "JPEG", 40, 24, 82, 82);
-      }
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(11, 58, 143);
-      pdf.setFontSize(11);
-      pdf.text("SPE-UI", pageWidth - 40, 52, { align: "right" });
-      pdf.text("ELECTORAL COMMITTEE", pageWidth - 40, 67, { align: "right" });
+      drawHeaderBrand();
 
       const rows = (pos.candidates.length
         ? pos.candidates
@@ -1836,7 +1890,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
         margin: { left: 40, right: 40 },
       });
 
-      drawFooter(idx + 2);
+      drawFooter(idx + 3);
     });
 
     const safeTitle = String(data.election.title || "Election-Result").replace(/[^a-z0-9-_]+/gi, "-");
