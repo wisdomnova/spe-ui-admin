@@ -103,12 +103,14 @@ interface ElectionDetail extends Election {
   voters: Voter[];
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  Draft: "bg-gray-100 text-gray-600",
+const TIME_TAG_COLORS: Record<string, string> = {
+  Live: "bg-emerald-50 text-emerald-700",
+  Upcoming: "bg-amber-50 text-amber-700",
+};
+
+const CONTROL_STATUS_COLORS: Record<string, string> = {
   Active: "bg-green-50 text-green-700",
   Completed: "bg-blue-50 text-blue-700",
-  Ongoing: "bg-emerald-50 text-emerald-700",
-  Scheduled: "bg-amber-50 text-amber-700",
 };
 
 /* ── Helpers ── */
@@ -138,10 +140,9 @@ function formatDateNice(dateStr: string) {
 }
 
 /** Computes a live display status based on date+time */
-function computeDisplayStatus(election: { status: string; election_date: string | null; start_time: string | null; end_time: string | null }) {
-  // Respect explicit admin override to Completed
-  if (election.status === "Completed") return "Completed";
-  if (!election.election_date || !election.start_time || !election.end_time) return election.status;
+function computeTimeTag(election: { status: string; election_date: string | null; start_time: string | null; end_time: string | null }) {
+  if (election.status === "Completed") return null;
+  if (!election.election_date || !election.start_time || !election.end_time) return null;
 
   const today = todayStr();
   const now = nowTimeStr();
@@ -149,12 +150,12 @@ function computeDisplayStatus(election: { status: string; election_date: string 
   const start = election.start_time.slice(0, 5);
   const end = election.end_time.slice(0, 5);
 
-  if (election.election_date > today) return "Scheduled";
-  if (election.election_date < today) return "Completed";
+  if (election.election_date > today) return "Upcoming";
+  if (election.election_date < today) return null;
   // election_date === today
-  if (now < start) return "Scheduled";
-  if (now >= start && now < end) return "Ongoing";
-  return "Completed";
+  if (now < start) return "Upcoming";
+  if (now >= start && now < end) return "Live";
+  return null;
 }
 
 /** Client-side validation for date/time */
@@ -399,7 +400,7 @@ export default function ElectionsPage() {
           ) : (
             <div className="space-y-4">
               {elections.map((election) => {
-                const displayStatus = computeDisplayStatus(election);
+                const timeTag = computeTimeTag(election);
                 return (
                 <motion.div
                   key={election.id}
@@ -416,9 +417,11 @@ export default function ElectionsPage() {
                         <h3 className="text-lg font-black text-gray-900 group-hover:text-blue-600 transition-colors truncate">
                           {election.title}
                         </h3>
-                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${STATUS_COLORS[displayStatus] || STATUS_COLORS.Draft}`}>
-                          {displayStatus}
-                        </span>
+                        {timeTag && (
+                          <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${TIME_TAG_COLORS[timeTag]}`}>
+                            {timeTag}
+                          </span>
+                        )}
                       </div>
                       {election.description && (
                         <p className="text-sm text-gray-400 font-medium truncate mb-3">{election.description}</p>
@@ -444,6 +447,7 @@ export default function ElectionsPage() {
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
+                          if (election.status === "Completed") return;
                           setTogglingId(election.id);
                           const newVal = !election.is_open;
                           setElections((prev) => prev.map((el) => el.id === election.id ? { ...el, is_open: newVal } : el));
@@ -456,16 +460,24 @@ export default function ElectionsPage() {
                           } catch {}
                           setTogglingId(null);
                         }}
-                        disabled={togglingId === election.id}
+                        disabled={togglingId === election.id || election.status === "Completed"}
                         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
-                          election.is_open
-                            ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                            : "bg-gray-50 text-gray-400 hover:bg-gray-100"
-                        } ${togglingId === election.id ? "opacity-50 pointer-events-none" : ""}`}
-                        title={election.is_open ? "Close election" : "Open election"}
+                          election.status === "Completed"
+                            ? "bg-blue-50 text-blue-700"
+                            : election.is_open
+                              ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                              : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                        } ${(togglingId === election.id || election.status === "Completed") ? "opacity-50 pointer-events-none" : ""}`}
+                        title={election.status === "Completed" ? "Completed election" : election.is_open ? "Close election" : "Open election"}
                       >
-                        {togglingId === election.id ? <Loader2 size={18} className="animate-spin" /> : election.is_open ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                        {election.is_open ? "Open" : "Closed"}
+                        {election.status === "Completed"
+                          ? <CheckCircle size={18} />
+                          : togglingId === election.id
+                            ? <Loader2 size={18} className="animate-spin" />
+                            : election.is_open
+                              ? <ToggleRight size={18} />
+                              : <ToggleLeft size={18} />}
+                        {election.status === "Completed" ? "Completed" : election.is_open ? "Open" : "Closed"}
                       </button>
                       <button
                         onClick={() => handleDelete(election.id)}
@@ -525,10 +537,9 @@ function ElectionDetail({
   onRefresh: () => void;
 }) {
   const [tab, setTab] = useState<"positions" | "candidates" | "voters" | "results">("positions");
-  const [status, setStatus] = useState(election.status);
+  const [status, setStatus] = useState<Election["status"]>(election.status);
   const [isOpen, setIsOpen] = useState(election.is_open ?? false);
-  const [saving, setSaving] = useState(false);
-  const [togglingOpen, setTogglingOpen] = useState(false);
+  const [savingControl, setSavingControl] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [schedDate, setSchedDate] = useState(election.election_date || "");
   const [schedStart, setSchedStart] = useState(election.start_time?.slice(0, 5) || "");
@@ -547,35 +558,27 @@ function ElectionDetail({
     }
   }, [election]);
 
-  const displayStatus = useMemo(() => computeDisplayStatus(election), [election]);
+  const timeTag = useMemo(() => computeTimeTag(election), [election]);
 
-  const handleStatusChange = async (newStatus: string) => {
-    setSaving(true);
-    setStatus(newStatus as Election["status"]);
+  const currentControlState = status === "Completed" ? "Completed" : isOpen ? "Open" : "Closed";
+
+  const handleControlStateChange = async (nextState: "Open" | "Closed" | "Completed") => {
+    const nextStatus: Election["status"] = nextState === "Completed" ? "Completed" : "Active";
+    const nextIsOpen = nextState === "Open";
+
+    setSavingControl(true);
+    setStatus(nextStatus);
+    setIsOpen(nextIsOpen);
+
     try {
       await fetch(`/api/elections/${election.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: nextStatus, is_open: nextIsOpen }),
       });
       onRefresh();
     } catch {}
-    setSaving(false);
-  };
-
-  const handleToggleOpen = async () => {
-    setTogglingOpen(true);
-    const newVal = !isOpen;
-    setIsOpen(newVal);
-    try {
-      await fetch(`/api/elections/${election.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_open: newVal }),
-      });
-      onRefresh();
-    } catch {}
-    setTogglingOpen(false);
+    setSavingControl(false);
   };
 
   const handleScheduleSave = async () => {
@@ -636,32 +639,29 @@ function ElectionDetail({
           <div>
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-black text-gray-900 tracking-tight">{election.title}</h2>
-              <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${STATUS_COLORS[displayStatus] || STATUS_COLORS.Draft}`}>
-                {displayStatus}
-              </span>
+              {timeTag && (
+                <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${TIME_TAG_COLORS[timeTag]}`}>
+                  {timeTag}
+                </span>
+              )}
             </div>
             {election.description && <p className="text-gray-500 font-medium mt-1">{election.description}</p>}
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggleOpen}
-              disabled={togglingOpen}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                isOpen
-                  ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                  : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-              } ${togglingOpen ? "opacity-50 pointer-events-none" : ""}`}
-            >
-              {togglingOpen ? <Loader2 size={18} className="animate-spin" /> : isOpen ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-              {isOpen ? "Open" : "Closed"}
-            </button>
             <select
-              value={status}
-              disabled={saving}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border-0 cursor-pointer ${STATUS_COLORS[status]} ${saving ? "opacity-50 pointer-events-none" : ""}`}
+              value={currentControlState}
+              disabled={savingControl}
+              onChange={(e) => handleControlStateChange(e.target.value as "Open" | "Closed" | "Completed")}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border-0 cursor-pointer ${
+                currentControlState === "Open"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : currentControlState === "Closed"
+                    ? "bg-gray-100 text-gray-500"
+                    : CONTROL_STATUS_COLORS.Completed
+              } ${savingControl ? "opacity-50 pointer-events-none" : ""}`}
             >
-              <option value="Active">Active</option>
+              <option value="Open">Open</option>
+              <option value="Closed">Closed</option>
               <option value="Completed">Completed</option>
             </select>
           </div>
@@ -702,7 +702,7 @@ function ElectionDetail({
                   <span className="text-gray-400">–</span>
                   <span className="text-sm font-bold text-gray-700">{formatTime12(election.end_time.slice(0, 5))}</span>
                 </div>
-                {displayStatus === "Ongoing" && (
+                {timeTag === "Live" && (
                   <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full animate-pulse">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Live Now
                   </span>
