@@ -171,10 +171,24 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: "Voter id is required" }, { status: 400 });
 
+    const name = body.name !== undefined ? String(body.name).trim() : undefined;
+    const matric = body.matric_number !== undefined ? String(body.matric_number).trim() : undefined;
+    const email = body.email !== undefined ? String(body.email).trim() : undefined;
+
+    if (name !== undefined && !name) {
+      return NextResponse.json({ error: "Name cannot be empty" }, { status: 400 });
+    }
+    if (matric !== undefined && !matric) {
+      return NextResponse.json({ error: "Matric number cannot be empty" }, { status: 400 });
+    }
+    if (email !== undefined && !email) {
+      return NextResponse.json({ error: "Email cannot be empty" }, { status: 400 });
+    }
+
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (body.name !== undefined) updates.name = body.name.trim();
-    if (body.matric_number !== undefined) updates.matric_number = body.matric_number.trim();
-    if (body.email !== undefined) updates.email = body.email.trim();
+    if (name !== undefined) updates.name = name;
+    if (matric !== undefined) updates.matric_number = matric;
+    if (email !== undefined) updates.email = email;
     if (body.level !== undefined) updates.level = body.level?.trim() || null;
     if (body.department !== undefined) updates.department = body.department?.trim() || null;
 
@@ -213,17 +227,26 @@ export async function DELETE(req: NextRequest) {
     const singleId = searchParams.get("id");
     const bulkIds = searchParams.get("ids");
 
+    async function deleteVotersByIds(idList: string[]) {
+      const { error: otpErr } = await supabase.from("voter_otps").delete().in("voter_id", idList);
+      if (otpErr) return otpErr;
+      const { error: assignErr } = await supabase.from("election_voter_assignments").delete().in("voter_id", idList);
+      if (assignErr) return assignErr;
+      const { error: voterErr } = await supabase.from("voters").delete().in("id", idList);
+      return voterErr;
+    }
+
     if (bulkIds) {
       const idList = bulkIds.split(",").map((s) => s.trim()).filter(Boolean);
       if (idList.length === 0) return NextResponse.json({ error: "No ids provided" }, { status: 400 });
 
-      const { error } = await supabase.from("voters").delete().in("id", idList);
+      const error = await deleteVotersByIds(idList);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true, deleted: idList.length });
     }
 
     if (singleId) {
-      const { error } = await supabase.from("voters").delete().eq("id", singleId);
+      const error = await deleteVotersByIds([singleId]);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ success: true });
     }

@@ -1763,6 +1763,17 @@ interface CandidateResult {
   percentage: number;
 }
 
+/** Integer Y-axis ticks from yMax down to 0 (aligned with bar scale). */
+function buildVoteChartTicks(yMax: number): number[] {
+  const n = Math.max(1, Math.floor(yMax));
+  if (n <= 12) return Array.from({ length: n + 1 }, (_, i) => n - i);
+  const step = Math.max(1, Math.ceil(n / 5));
+  const ticks: number[] = [];
+  for (let v = n; v > 0; v -= step) ticks.push(v);
+  ticks.push(0);
+  return ticks;
+}
+
 function ResultsTab({ electionId }: { electionId: string }) {
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1983,12 +1994,12 @@ function ResultsTab({ electionId }: { electionId: string }) {
           percentage: 0,
         },
       ];
-  const maxSelectedVotes = Math.max(...displayCandidates.map((cand) => cand.votes), 1);
-  const chartMaxValue = Math.max(maxSelectedVotes, 5);
-  const chartTicks =
-    chartMaxValue <= 10
-      ? Array.from({ length: chartMaxValue + 1 }, (_, i) => chartMaxValue - i)
-      : [chartMaxValue, Math.ceil((chartMaxValue * 3) / 4), Math.ceil(chartMaxValue / 2), Math.ceil(chartMaxValue / 4), 0];
+  const chartVoteCounts = displayCandidates
+    .filter((c) => c.id !== "placeholder")
+    .map((c) => c.votes);
+  const maxSelectedVotes = chartVoteCounts.length ? Math.max(...chartVoteCounts) : 0;
+  const yMax = Math.max(1, maxSelectedVotes);
+  const yTicks = buildVoteChartTicks(yMax);
 
   return (
     <div className="space-y-6">
@@ -2146,34 +2157,45 @@ function ResultsTab({ electionId }: { electionId: string }) {
 
         {resultsView === "chart" ? (
           <div className="border border-gray-100 rounded-2xl p-4 sm:p-5">
-            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Votes</div>
-            <div className="grid grid-cols-[40px_1fr] gap-3">
-              <div className="h-64 flex flex-col justify-between text-[10px] font-bold text-gray-400">
-                {chartTicks.map((tick, idx) => (
-                  <span key={`tick-${idx}`}>{tick}</span>
+            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+              Votes (this position) · max {yMax}
+            </div>
+            <div className="flex gap-2">
+              {/* Y-axis — tick position uses same scale as grid + bars */}
+              <div className="w-9 shrink-0 relative h-56 text-[10px] font-bold text-gray-400">
+                {yTicks.map((tick) => (
+                  <span
+                    key={`y-${tick}`}
+                    className="absolute right-0 tabular-nums leading-none"
+                    style={{ bottom: `${(tick / yMax) * 100}%`, transform: "translateY(50%)" }}
+                  >
+                    {tick}
+                  </span>
                 ))}
               </div>
-              <div className="relative h-64 border-l border-b border-gray-200">
-                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                  {chartTicks.map((_, idx) => (
-                    <div key={`gridline-${idx}`} className="border-t border-gray-100" />
-                  ))}
-                </div>
-                <div className="absolute inset-0 flex items-end justify-around gap-3 px-3 pb-2">
+              <div className="flex-1 relative h-56 border-l border-b border-gray-200">
+                {yTicks.map((tick) => (
+                  <div
+                    key={`grid-${tick}`}
+                    className="absolute left-0 right-0 border-t border-gray-100 pointer-events-none"
+                    style={{ bottom: `${(tick / yMax) * 100}%` }}
+                  />
+                ))}
+                <div className="absolute inset-0 flex items-stretch justify-around gap-2 px-2 pt-2">
                   {displayCandidates.map((cand, idx) => {
                     const isPlaceholder = cand.id === "placeholder";
                     const isNoneOfAbove = cand.id === "none_of_above";
-                    const barHeight = cand.votes === 0 ? 0 : Math.max((cand.votes / chartMaxValue) * 100, 3);
+                    const pct = yMax > 0 ? (cand.votes / yMax) * 100 : 0;
                     return (
-                      <div key={`${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center justify-end">
+                      <div key={`${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center min-w-0">
                         <span
-                          className={`text-[11px] font-black mb-1 ${
+                          className={`text-[11px] font-black mb-1 shrink-0 ${
                             isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-700"
                           }`}
                         >
                           {cand.votes}
                         </span>
-                        <div className="w-full h-44 flex items-end relative group">
+                        <div className="w-full flex-1 min-h-0 flex flex-col justify-end relative group">
                           <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap">
                             {cand.name}: {cand.votes} vote{cand.votes !== 1 ? "s" : ""} ({cand.percentage}%)
                           </div>
@@ -2186,11 +2208,11 @@ function ResultsTab({ electionId }: { electionId: string }) {
                                   : "bg-blue-500"
                             }`}
                             initial={{ height: 0 }}
-                            animate={{ height: `${barHeight}%` }}
-                            transition={{ duration: 0.6, delay: idx * 0.08, ease: "easeOut" }}
+                            animate={{ height: `${pct}%` }}
+                            transition={{ duration: 0.55, delay: idx * 0.06, ease: "easeOut" }}
                           />
                         </div>
-                        <div className="mt-2 flex flex-col items-center gap-1">
+                        <div className="mt-2 flex flex-col items-center gap-1 shrink-0">
                           {isPlaceholder ? (
                             <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
                           ) : isNoneOfAbove ? (
@@ -2205,7 +2227,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
                             </div>
                           )}
                           <span
-                            className={`text-[10px] font-bold text-center leading-tight ${
+                            className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
                               isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
                             }`}
                           >

@@ -63,6 +63,7 @@ export default function VotersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState({ name: "", matric_number: "", email: "", level: "", department: "" });
   const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   const fetchVoters = useCallback(async () => {
     setLoading(true);
@@ -135,7 +136,12 @@ export default function VotersPage() {
 
   const handleDeleteSingle = async (id: string) => {
     if (!confirm("Delete this voter from the pool? They will be removed from all elections.")) return;
-    await fetch(`/api/voters?id=${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/voters?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Delete failed");
+      return;
+    }
     setSelectedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
     fetchVoters();
   };
@@ -145,8 +151,14 @@ export default function VotersPage() {
     if (!confirm(`Delete ${selectedIds.size} voter${selectedIds.size > 1 ? "s" : ""}? They will be removed from all elections.`))
       return;
     setBulkDeleting(true);
-    const ids = [...selectedIds].join(",");
-    await fetch(`/api/voters?ids=${ids}`, { method: "DELETE" });
+    const ids = [...selectedIds].map(encodeURIComponent).join(",");
+    const res = await fetch(`/api/voters?ids=${ids}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || "Bulk delete failed");
+      setBulkDeleting(false);
+      return;
+    }
     setSelectedIds(new Set());
     await fetchVoters();
     setBulkDeleting(false);
@@ -170,6 +182,7 @@ export default function VotersPage() {
   };
 
   const startEdit = (voter: Voter) => {
+    setEditError("");
     setEditingId(voter.id);
     setEditData({
       name: voter.name,
@@ -183,6 +196,7 @@ export default function VotersPage() {
   const handleEditSave = async () => {
     if (!editingId) return;
     setEditSaving(true);
+    setEditError("");
     const res = await fetch("/api/voters", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -190,7 +204,10 @@ export default function VotersPage() {
     });
     if (res.ok) {
       setEditingId(null);
-      fetchVoters();
+      await fetchVoters();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      setEditError(d.error || "Could not save changes");
     }
     setEditSaving(false);
   };
@@ -584,6 +601,9 @@ export default function VotersPage() {
                             />
                           </td>
                           <td className="px-6 py-2">
+                            {editError && (
+                              <p className="text-[11px] font-semibold text-red-600 mb-2 text-right">{editError}</p>
+                            )}
                             <div className="flex items-center gap-1.5 justify-end">
                               <button
                                 onClick={handleEditSave}
@@ -593,7 +613,7 @@ export default function VotersPage() {
                                 {editSaving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                               </button>
                               <button
-                                onClick={() => setEditingId(null)}
+                                onClick={() => { setEditingId(null); setEditError(""); }}
                                 className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-all"
                               >
                                 <X size={14} />
