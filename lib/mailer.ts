@@ -1,23 +1,56 @@
 import nodemailer from "nodemailer";
 import { supabase } from "@/lib/supabase";
 
-const transporter = nodemailer.createTransport({
+function createTransport(config: {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+}) {
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    pool: true,
+    maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || "3", 10),
+    maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES_PER_CONNECTION || "100", 10),
+    rateDelta: 1000,
+    rateLimit: parseInt(process.env.SMTP_RATE_LIMIT_PER_SECOND || "5", 10),
+    connectionTimeout: 60000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+}
+
+const primaryTransporter = createTransport({
   host: process.env.SMTP_HOST || "smtp.hostinger.com",
   port: parseInt(process.env.SMTP_PORT || "465", 10),
-  secure: true,
-  pool: true,
-  maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || "3", 10),
-  maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES_PER_CONNECTION || "100", 10),
-  rateDelta: 1000,
-  rateLimit: parseInt(process.env.SMTP_RATE_LIMIT_PER_SECOND || "5", 10),
-  connectionTimeout: 60000,
-  greetingTimeout: 30000,
-  socketTimeout: 60000,
-  auth: {
-    user: process.env.SMTP_USER || "info@speui.org",
-    pass: process.env.SMTP_PASS || "",
-  },
+  secure: String(process.env.SMTP_SECURE || "true") !== "false",
+  user: process.env.SMTP_USER || "info@speui.org",
+  pass: process.env.SMTP_PASS || "",
 });
+
+const backupHost = process.env.SMTP_BACKUP_HOST || "";
+const backupUser = process.env.SMTP_BACKUP_USER || "";
+const backupPass = process.env.SMTP_BACKUP_PASS || "";
+const backupPort = parseInt(process.env.SMTP_BACKUP_PORT || "587", 10);
+const backupSecure = String(process.env.SMTP_BACKUP_SECURE || "false") === "true";
+
+const backupTransporter =
+  backupHost && backupUser && backupPass
+    ? createTransport({
+        host: backupHost,
+        port: backupPort,
+        secure: backupSecure,
+        user: backupUser,
+        pass: backupPass,
+      })
+    : null;
 
 const FROM_ADDRESS = `"SPE-UI" <${process.env.SMTP_USER || "info@speui.org"}>`;
 const MAX_SEND_RETRIES = Math.max(1, parseInt(process.env.SMTP_MAX_SEND_RETRIES || "3", 10));
@@ -58,12 +91,23 @@ function isTransientSmtpError(err: unknown): boolean {
 
 async function verifyTransporter() {
   if (!verifyPromise) {
-    verifyPromise = transporter.verify().then(() => undefined).catch((err) => {
+    verifyPromise = primaryTransporter.verify().then(() => undefined).catch((err) => {
       verifyPromise = null;
       throw err;
     });
   }
   return verifyPromise;
+}
+
+async function sendMailWithFailover(mailOptions: Record<string, unknown>) {
+  try {
+    await primaryTransporter.sendMail(mailOptions);
+  } catch (err) {
+    if (!backupTransporter || !isTransientSmtpError(err)) {
+      throw err;
+    }
+    await backupTransporter.sendMail(mailOptions);
+  }
 }
 
 /**
@@ -80,7 +124,7 @@ export async function sendEmail({
   html: string;
   text?: string;
 }) {
-  await transporter.sendMail({
+  await sendMailWithFailover({
     from: FROM_ADDRESS,
     to,
     subject,
@@ -239,7 +283,7 @@ async function sendBatch(emails: Array<Record<string, string>>): Promise<{
       let lastError: unknown = null;
       for (let attempt = 1; attempt <= MAX_SEND_RETRIES; attempt++) {
         try {
-          await transporter.sendMail({
+          await sendMailWithFailover({
             from: FROM_ADDRESS,
             to: email.to_email,
             subject: email.subject,
