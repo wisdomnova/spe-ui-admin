@@ -1985,7 +1985,10 @@ function ResultsTab({ electionId }: { electionId: string }) {
       ];
   const maxSelectedVotes = Math.max(...displayCandidates.map((cand) => cand.votes), 1);
   const chartMaxValue = Math.max(maxSelectedVotes, 5);
-  const chartTicks = [chartMaxValue, Math.round((chartMaxValue * 3) / 4), Math.round(chartMaxValue / 2), Math.round(chartMaxValue / 4), 0];
+  const chartTicks =
+    chartMaxValue <= 10
+      ? Array.from({ length: chartMaxValue + 1 }, (_, i) => chartMaxValue - i)
+      : [chartMaxValue, Math.ceil((chartMaxValue * 3) / 4), Math.ceil(chartMaxValue / 2), Math.ceil(chartMaxValue / 4), 0];
 
   return (
     <div className="space-y-6">
@@ -2160,7 +2163,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
                   {displayCandidates.map((cand, idx) => {
                     const isPlaceholder = cand.id === "placeholder";
                     const isNoneOfAbove = cand.id === "none_of_above";
-                    const barHeight = Math.max((cand.votes / chartMaxValue) * 100, 3);
+                    const barHeight = cand.votes === 0 ? 0 : Math.max((cand.votes / chartMaxValue) * 100, 3);
                     return (
                       <div key={`${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center justify-end">
                         <span
