@@ -36,6 +36,17 @@ import VoterPicker from "@/components/VoterPicker";
 import MediaPickerModal from "@/components/cms/MediaPickerModal";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { computeElectionTimeTag } from "@/lib/election-status";
 
 /* ── Types ── */
@@ -1999,7 +2010,14 @@ function ResultsTab({ electionId }: { electionId: string }) {
     .map((c) => c.votes);
   const maxSelectedVotes = chartVoteCounts.length ? Math.max(...chartVoteCounts) : 0;
   const yMax = Math.max(1, maxSelectedVotes);
-  const yTicks = buildVoteChartTicks(yMax);
+  const yAxisTicksAsc = [...buildVoteChartTicks(yMax)].sort((a, b) => a - b);
+
+  const chartData = displayCandidates.map((c) => ({
+    shortLabel: c.name.length > 12 ? `${c.name.slice(0, 12)}…` : c.name,
+    fullName: c.name,
+    votes: c.votes,
+    fill: c.id === "placeholder" ? "#cbd5e1" : c.id === "none_of_above" ? "#f59e0b" : "#3b82f6",
+  }));
 
   return (
     <div className="space-y-6">
@@ -2160,85 +2178,79 @@ function ResultsTab({ electionId }: { electionId: string }) {
             <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
               Votes (this position) · max {yMax}
             </div>
-            <div className="flex gap-2">
-              {/* Y-axis — tick position uses same scale as grid + bars */}
-              <div className="w-9 shrink-0 relative h-56 text-[10px] font-bold text-gray-400">
-                {yTicks.map((tick) => (
-                  <span
-                    key={`y-${tick}`}
-                    className="absolute right-0 tabular-nums leading-none"
-                    style={{ bottom: `${(tick / yMax) * 100}%`, transform: "translateY(50%)" }}
-                  >
-                    {tick}
-                  </span>
-                ))}
-              </div>
-              <div className="flex-1 relative h-56 border-l border-b border-gray-200">
-                {yTicks.map((tick) => (
-                  <div
-                    key={`grid-${tick}`}
-                    className="absolute left-0 right-0 border-t border-gray-100 pointer-events-none"
-                    style={{ bottom: `${(tick / yMax) * 100}%` }}
+            <div className="w-full h-[300px] min-h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  margin={{ top: 28, right: 12, left: 4, bottom: 4 }}
+                  barCategoryGap="18%"
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="shortLabel"
+                    tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }}
+                    interval={0}
+                    tickLine={false}
+                    axisLine={{ stroke: "#e2e8f0" }}
                   />
-                ))}
-                <div className="absolute inset-0 flex items-stretch justify-around gap-2 px-2 pt-2">
-                  {displayCandidates.map((cand, idx) => {
-                    const isPlaceholder = cand.id === "placeholder";
-                    const isNoneOfAbove = cand.id === "none_of_above";
-                    const pct = yMax > 0 ? (cand.votes / yMax) * 100 : 0;
-                    return (
-                      <div key={`${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center min-w-0">
-                        <span
-                          className={`text-[11px] font-black mb-1 shrink-0 ${
-                            isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-700"
-                          }`}
-                        >
-                          {cand.votes}
-                        </span>
-                        <div className="w-full flex-1 min-h-0 flex flex-col justify-end relative group">
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap">
-                            {cand.name}: {cand.votes} vote{cand.votes !== 1 ? "s" : ""} ({cand.percentage}%)
-                          </div>
-                          <motion.div
-                            className={`w-full rounded-t-md ${
-                              isPlaceholder
-                                ? "bg-gray-300"
-                                : isNoneOfAbove
-                                  ? "bg-amber-500"
-                                  : "bg-blue-500"
-                            }`}
-                            initial={{ height: 0 }}
-                            animate={{ height: `${pct}%` }}
-                            transition={{ duration: 0.55, delay: idx * 0.06, ease: "easeOut" }}
-                          />
-                        </div>
-                        <div className="mt-2 flex flex-col items-center gap-1 shrink-0">
-                          {isPlaceholder ? (
-                            <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
-                          ) : isNoneOfAbove ? (
-                            <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
-                              Ø
-                            </div>
-                          ) : cand.image_url ? (
-                            <img src={cand.image_url} alt={cand.name} className="w-6 h-6 rounded-full object-cover" />
-                          ) : (
-                            <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
-                              {cand.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span
-                            className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
-                              isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
-                            }`}
-                          >
-                            {cand.name}
-                          </span>
-                        </div>
+                  <YAxis
+                    domain={[0, yMax]}
+                    ticks={yAxisTicksAsc}
+                    allowDecimals={false}
+                    width={40}
+                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "#e2e8f0" }}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "rgba(241, 245, 249, 0.6)" }}
+                    formatter={(value: number | string) => [
+                      `${value} vote${Number(value) !== 1 ? "s" : ""}`,
+                      "Votes",
+                    ]}
+                    labelFormatter={(_label, payload) => {
+                      const row = payload?.[0]?.payload as { fullName?: string } | undefined;
+                      return row?.fullName ?? "";
+                    }}
+                  />
+                  <Bar dataKey="votes" radius={[6, 6, 0, 0]} maxBarSize={56} isAnimationActive animationDuration={450}>
+                    {chartData.map((row, i) => (
+                      <Cell key={`bar-${row.fullName}-${i}`} fill={row.fill} />
+                    ))}
+                    <LabelList dataKey="votes" position="top" fill="#334155" fontSize={11} fontWeight={800} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-around gap-2 pl-5 pr-2 pt-3 border-t border-gray-50 mt-1">
+              {displayCandidates.map((cand, idx) => {
+                const isPlaceholder = cand.id === "placeholder";
+                const isNoneOfAbove = cand.id === "none_of_above";
+                return (
+                  <div key={`avatar-${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center gap-1 min-w-0">
+                    {isPlaceholder ? (
+                      <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
+                    ) : isNoneOfAbove ? (
+                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
+                        Ø
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    ) : cand.image_url ? (
+                      <img src={cand.image_url} alt={cand.name} className="w-6 h-6 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
+                        {cand.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span
+                      className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
+                        isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
+                      }`}
+                    >
+                      {cand.name}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
