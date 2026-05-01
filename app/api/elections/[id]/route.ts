@@ -80,6 +80,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     if (body.description !== undefined) updates.description = body.description;
     if (body.status !== undefined) updates.status = body.status;
     if (body.is_open !== undefined) updates.is_open = body.is_open;
+    if (body.show_live_voter_names !== undefined) updates.show_live_voter_names = body.show_live_voter_names;
 
     // Handle date/time updates
     const newDate = body.election_date !== undefined ? body.election_date : current.election_date;

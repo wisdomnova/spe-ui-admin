@@ -36,6 +36,7 @@ import VoterPicker from "@/components/VoterPicker";
 import MediaPickerModal from "@/components/cms/MediaPickerModal";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { computeElectionTimeTag } from "@/lib/election-status";
 
 /* ── Types ── */
 interface Election {
@@ -44,6 +45,7 @@ interface Election {
   description: string | null;
   status: "Draft" | "Active" | "Completed";
   is_open: boolean;
+  show_live_voter_names: boolean;
   election_date: string | null;
   start_time: string | null;
   end_time: string | null;
@@ -141,21 +143,7 @@ function formatDateNice(dateStr: string) {
 
 /** Computes a live display status based on date+time */
 function computeTimeTag(election: { status: string; election_date: string | null; start_time: string | null; end_time: string | null }) {
-  if (election.status === "Completed") return null;
-  if (!election.election_date || !election.start_time || !election.end_time) return null;
-
-  const today = todayStr();
-  const now = nowTimeStr();
-
-  const start = election.start_time.slice(0, 5);
-  const end = election.end_time.slice(0, 5);
-
-  if (election.election_date > today) return "Upcoming";
-  if (election.election_date < today) return null;
-  // election_date === today
-  if (now < start) return "Upcoming";
-  if (now >= start && now < end) return "Live";
-  return null;
+  return computeElectionTimeTag(election);
 }
 
 /** Client-side validation for date/time */
@@ -539,6 +527,8 @@ function ElectionDetail({
   const [tab, setTab] = useState<"positions" | "candidates" | "voters" | "results">("positions");
   const [status, setStatus] = useState<Election["status"]>(election.status);
   const [isOpen, setIsOpen] = useState(election.is_open ?? false);
+  const [showLiveVoterNames, setShowLiveVoterNames] = useState(election.show_live_voter_names ?? true);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [savingControl, setSavingControl] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
   const [schedDate, setSchedDate] = useState(election.election_date || "");
@@ -551,6 +541,7 @@ function ElectionDetail({
   useEffect(() => {
     setStatus(election.status);
     setIsOpen(election.is_open ?? false);
+    setShowLiveVoterNames(election.show_live_voter_names ?? true);
     if (!editingSchedule) {
       setSchedDate(election.election_date || "");
       setSchedStart(election.start_time?.slice(0, 5) || "");
@@ -601,6 +592,28 @@ function ElectionDetail({
       setSchedError(d.error || "Failed to update schedule");
     }
     setSchedSaving(false);
+  };
+
+  const handleToggleLiveVoterNames = async () => {
+    const next = !showLiveVoterNames;
+    setShowLiveVoterNames(next);
+    setSavingPrivacy(true);
+    try {
+      const res = await fetch(`/api/elections/${election.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ show_live_voter_names: next }),
+      });
+      if (!res.ok) {
+        setShowLiveVoterNames(!next);
+      } else {
+        onRefresh();
+      }
+    } catch {
+      setShowLiveVoterNames(!next);
+    } finally {
+      setSavingPrivacy(false);
+    }
   };
 
   const handleClearSchedule = async () => {
@@ -666,6 +679,29 @@ function ElectionDetail({
             </select>
           </div>
         </header>
+
+        <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-100 shadow-sm mb-8">
+          <div className="flex items-center justify-between gap-6">
+            <div>
+              <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">Ballot Activity Privacy</h3>
+              <p className="mt-1 text-sm font-medium text-gray-500">
+                Toggle voter names in the voting booth sidebar animation feed.
+              </p>
+            </div>
+            <button
+              onClick={handleToggleLiveVoterNames}
+              disabled={savingPrivacy}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all ${
+                showLiveVoterNames
+                  ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              } ${savingPrivacy ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              {showLiveVoterNames ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+              {showLiveVoterNames ? "Names On" : "Names Off"}
+            </button>
+          </div>
+        </div>
 
         {/* Schedule Card */}
         <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-gray-100 shadow-sm mb-8">

@@ -47,11 +47,9 @@ export async function POST(req: NextRequest) {
       source: source || "newsletter",
     });
 
-    // Step 2: Immediately start processing (best-effort)
-    // If this times out, the cron route will pick up remaining emails
-    processQueue(queued).catch(() => {
-      // Swallow - cron will handle remaining
-    });
+    // Step 2: Immediately process a first chunk before returning.
+    // This reduces time-to-delivery and leaves cron to drain the rest.
+    await processQueue(Math.min(queued, 100));
 
     return NextResponse.json({
       batchId,

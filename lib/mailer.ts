@@ -5,6 +5,11 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.hostinger.com",
   port: parseInt(process.env.SMTP_PORT || "465", 10),
   secure: true,
+  pool: true,
+  maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || "3", 10),
+  maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES_PER_CONNECTION || "100", 10),
+  rateDelta: 1000,
+  rateLimit: parseInt(process.env.SMTP_RATE_LIMIT_PER_SECOND || "5", 10),
   connectionTimeout: 60000,
   greetingTimeout: 30000,
   socketTimeout: 60000,
@@ -15,6 +20,51 @@ const transporter = nodemailer.createTransport({
 });
 
 const FROM_ADDRESS = `"SPE-UI" <${process.env.SMTP_USER || "info@speui.org"}>`;
+const MAX_SEND_RETRIES = Math.max(1, parseInt(process.env.SMTP_MAX_SEND_RETRIES || "3", 10));
+const BASE_RETRY_DELAY_MS = Math.max(500, parseInt(process.env.SMTP_RETRY_BASE_DELAY_MS || "1500", 10));
+let verifyPromise: Promise<void> | null = null;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isTransientSmtpError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+  const code = (err as { code?: string } | undefined)?.code?.toLowerCase() || "";
+  const responseCode = (err as { responseCode?: number } | undefined)?.responseCode;
+
+  const transientCodes = new Set([
+    "etimedout",
+    "esocket",
+    "econnreset",
+    "econnrefused",
+    "ehostunreach",
+    "enetunreach",
+    "eai_again",
+  ]);
+
+  if (transientCodes.has(code)) return true;
+  if (typeof responseCode === "number" && [421, 425, 429, 450, 451, 452].includes(responseCode)) return true;
+
+  return (
+    msg.includes("timed out") ||
+    msg.includes("timeout") ||
+    msg.includes("connection closed") ||
+    msg.includes("greeting never received") ||
+    msg.includes("try again later") ||
+    msg.includes("rate limit")
+  );
+}
+
+async function verifyTransporter() {
+  if (!verifyPromise) {
+    verifyPromise = transporter.verify().then(() => undefined).catch((err) => {
+      verifyPromise = null;
+      throw err;
+    });
+  }
+  return verifyPromise;
+}
 
 /**
  * Send a single email via SMTP.
@@ -93,6 +143,8 @@ export async function processQueue(limit = 50): Promise<{
   failed: number;
   remaining: number;
 }> {
+  await verifyTransporter();
+
   // Recover stale rows that were left in "sending" due to crashed/timeout workers.
   // We use created_at as a fallback timestamp since this table has no updated_at.
   const staleCutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // 30 minutes
@@ -184,14 +236,29 @@ async function sendBatch(emails: Array<Record<string, string>>): Promise<{
         headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
       }
 
-      await transporter.sendMail({
-        from: FROM_ADDRESS,
-        to: email.to_email,
-        subject: email.subject,
-        html: trackedHtml,
-        text: email.text_body || undefined,
-        headers,
-      });
+      let lastError: unknown = null;
+      for (let attempt = 1; attempt <= MAX_SEND_RETRIES; attempt++) {
+        try {
+          await transporter.sendMail({
+            from: FROM_ADDRESS,
+            to: email.to_email,
+            subject: email.subject,
+            html: trackedHtml,
+            text: email.text_body || undefined,
+            headers,
+          });
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          const transient = isTransientSmtpError(err);
+          if (!transient || attempt >= MAX_SEND_RETRIES) break;
+          const backoffMs = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+          await sleep(backoffMs);
+        }
+      }
+
+      if (lastError) throw lastError;
 
       await supabase
         .from("email_queue")

@@ -34,10 +34,29 @@ export async function POST(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
+    const rounds = Math.min(parseInt(searchParams.get("rounds") || "1", 10), 10);
 
-    const result = await processQueue(limit);
+    let totalSent = 0;
+    let totalFailed = 0;
+    let remaining = 0;
 
-    return NextResponse.json(result);
+    for (let i = 0; i < rounds; i++) {
+      const result = await processQueue(limit);
+      totalSent += result.sent;
+      totalFailed += result.failed;
+      remaining = result.remaining;
+
+      if (result.sent === 0 && result.failed === 0) break;
+      if (remaining <= 0) break;
+    }
+
+    return NextResponse.json({
+      sent: totalSent,
+      failed: totalFailed,
+      remaining,
+      rounds,
+      limit,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to process queue";
     return NextResponse.json({ error: message }, { status: 500 });
