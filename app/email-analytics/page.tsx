@@ -18,12 +18,19 @@ import {
   ChevronUp,
   Filter,
   RefreshCw,
+  RotateCcw,
   Send,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════
    TYPES
    ═══════════════════════════════════════════════════════ */
+interface FailedDelivery {
+  id: string;
+  to_email: string;
+  error: string | null;
+}
+
 interface Campaign {
   batch_id: string;
   subject: string;
@@ -37,6 +44,7 @@ interface Campaign {
   uniqueOpens: number;
   clicks: number;
   topLinks: { url: string; count: number }[];
+  failedDeliveries: FailedDelivery[];
 }
 
 interface Totals {
@@ -69,6 +77,7 @@ export default function EmailAnalyticsPage() {
   const [source, setSource] = useState("");
   const [days, setDays] = useState(30);
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
+  const [retryingBatchId, setRetryingBatchId] = useState<string | null>(null);
 
   const fetchAnalytics = useCallback(async () => {
     setLoading(true);
@@ -88,6 +97,29 @@ export default function EmailAnalyticsPage() {
     }
     setLoading(false);
   }, [source, days]);
+
+  const retryFailedForBatch = useCallback(async (batchId: string) => {
+    setRetryingBatchId(batchId);
+    try {
+      const res = await fetch("/api/email-queue/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_id: batchId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        window.alert(typeof data.error === "string" ? data.error : "Retry failed");
+        return;
+      }
+      if (data.retried === 0 && data.message) {
+        window.alert(data.message);
+        return;
+      }
+      await fetchAnalytics();
+    } finally {
+      setRetryingBatchId(null);
+    }
+  }, [fetchAnalytics]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -228,6 +260,8 @@ export default function EmailAnalyticsPage() {
                       onToggle={() =>
                         setExpandedBatch(expandedBatch === c.batch_id ? null : c.batch_id)
                       }
+                      retrying={retryingBatchId === c.batch_id}
+                      onRetryFailed={() => retryFailedForBatch(c.batch_id)}
                     />
                   ))}
                 </div>
@@ -289,10 +323,14 @@ function CampaignRow({
   campaign: c,
   expanded,
   onToggle,
+  retrying,
+  onRetryFailed,
 }: {
   campaign: Campaign;
   expanded: boolean;
   onToggle: () => void;
+  retrying: boolean;
+  onRetryFailed: () => void;
 }) {
   const openRate = c.sent > 0 ? ((c.uniqueOpens / c.sent) * 100).toFixed(1) : "0";
   const clickRate = c.sent > 0 ? ((c.clicks / c.sent) * 100).toFixed(1) : "0";
@@ -302,68 +340,91 @@ function CampaignRow({
     voters: "bg-emerald-50 text-emerald-600",
   };
 
+  const failures = c.failedDeliveries ?? [];
+
   return (
     <div>
-      <button
-        onClick={onToggle}
-        className="w-full text-left px-6 py-5 hover:bg-gray-50 transition-colors flex items-start gap-4"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-1.5">
-            <h4 className="font-bold text-gray-900 truncate">{c.subject}</h4>
-            <span
-              className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                sourceColors[c.source] || "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {c.source}
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-gray-400">
-            <span className="flex items-center gap-1">
-              <Clock size={11} />
-              {new Date(c.created_at).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-            <span className="flex items-center gap-1">
-              <Send size={11} />
-              {c.sent}/{c.total} delivered
-            </span>
-            {c.failed > 0 && (
-              <span className="flex items-center gap-1 text-red-400">
-                <XCircle size={11} />
-                {c.failed} failed
+      <div className="flex items-stretch hover:bg-gray-50 transition-colors">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex-1 min-w-0 text-left px-6 py-5 flex items-start gap-4"
+        >
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-1.5">
+              <h4 className="font-bold text-gray-900 truncate">{c.subject}</h4>
+              <span
+                className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                  sourceColors[c.source] || "bg-gray-100 text-gray-500"
+                }`}
+              >
+                {c.source}
               </span>
-            )}
-            {c.pending > 0 && (
-              <span className="flex items-center gap-1 text-amber-400">
-                <Loader2 size={11} />
-                {c.pending} pending
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1">
+                <Clock size={11} />
+                {new Date(c.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </span>
-            )}
+              <span className="flex items-center gap-1">
+                <Send size={11} />
+                {c.sent}/{c.total} delivered
+              </span>
+              {c.failed > 0 && (
+                <span className="flex items-center gap-1 text-red-500 font-bold">
+                  <XCircle size={11} />
+                  {c.failed} failed
+                </span>
+              )}
+              {c.pending > 0 && (
+                <span className="flex items-center gap-1 text-amber-400">
+                  <Loader2 size={11} />
+                  {c.pending} pending
+                </span>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Metrics grid */}
-        <div className="flex items-center gap-6 text-center shrink-0">
-          <div>
-            <p className="text-lg font-black text-gray-900">{openRate}%</p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Opens</p>
+          <div className="flex items-center gap-6 text-center shrink-0">
+            <div>
+              <p className="text-lg font-black text-gray-900">{openRate}%</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Opens</p>
+            </div>
+            <div>
+              <p className="text-lg font-black text-gray-900">{clickRate}%</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase">Clicks</p>
+            </div>
           </div>
-          <div>
-            <p className="text-lg font-black text-gray-900">{clickRate}%</p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Clicks</p>
-          </div>
-          <div className="text-gray-300">
+        </button>
+
+        <div className="flex flex-col items-end justify-center gap-2 pr-4 sm:pr-6 py-4 shrink-0 border-l border-transparent">
+          {c.failed > 0 && (
+            <button
+              type="button"
+              onClick={onRetryFailed}
+              disabled={retrying}
+              className="flex items-center gap-1.5 rounded-xl bg-red-50 text-red-700 px-3 py-2 text-xs font-black uppercase tracking-wide hover:bg-red-100 disabled:opacity-60 transition-colors"
+            >
+              {retrying ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+              Retry failed
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onToggle}
+            className="text-gray-300 hover:text-gray-500 p-1 rounded-lg"
+            aria-expanded={expanded}
+          >
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </div>
+          </button>
         </div>
-      </button>
+      </div>
 
       <AnimatePresence>
         {expanded && (
@@ -380,6 +441,32 @@ function CampaignRow({
                 <MiniStat icon={Eye} label="Total Opens" value={String(c.opens)} color="text-emerald-400" />
                 <MiniStat icon={MousePointerClick} label="Total Clicks" value={String(c.clicks)} color="text-violet-500" />
               </div>
+
+              {failures.length > 0 && (
+                <div className="mb-6">
+                  <h5 className="text-[10px] font-black text-red-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <AlertTriangle size={12} />
+                    Delivery failures (SMTP / recipient)
+                  </h5>
+                  <p className="text-xs text-gray-500 mb-3">
+                    These addresses did not accept the message. The error below is what the mail server returned (e.g.
+                    invalid mailbox, quota, or greylisting).
+                  </p>
+                  <div className="space-y-2">
+                    {failures.map((f) => (
+                      <div
+                        key={f.id}
+                        className="rounded-xl border border-red-100 bg-red-50/50 px-4 py-3 text-sm"
+                      >
+                        <p className="font-bold text-gray-900 break-all">{f.to_email}</p>
+                        <p className="text-xs text-red-800/90 mt-1 font-mono leading-relaxed whitespace-pre-wrap">
+                          {f.error || "No error message stored"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Top Links */}
               {c.topLinks.length > 0 && (

@@ -331,6 +331,21 @@ async function sendBatch(emails: Array<Record<string, string>>): Promise<{
 }
 
 /**
+ * Reset failed rows for a campaign batch to pending so processQueue can send them again.
+ */
+export async function retryFailedEmailsForBatch(batchId: string): Promise<{ retried: number }> {
+  const { data, error } = await supabase
+    .from("email_queue")
+    .update({ status: "pending", error: null })
+    .eq("batch_id", batchId)
+    .eq("status", "failed")
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  return { retried: data?.length ?? 0 };
+}
+
+/**
  * Strip HTML tags to produce a plain-text fallback.
  */
 function stripHtmlToText(html: string): string {

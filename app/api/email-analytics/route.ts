@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     // ── 1. Fetch campaigns (grouped by batch_id) ──
     let query = supabase
       .from("email_queue")
-      .select("id, batch_id, subject, source, status, to_email, created_at, sent_at")
+      .select("id, batch_id, subject, source, status, to_email, created_at, sent_at, error")
       .gte("created_at", since)
       .order("created_at", { ascending: false });
 
@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
         uniqueOpens: number;
         clicks: number;
         topLinks: { url: string; count: number }[];
+        failedDeliveries: { id: string; to_email: string; error: string | null }[];
       }
     >();
 
@@ -106,14 +107,21 @@ export async function GET(req: NextRequest) {
           uniqueOpens: 0,
           clicks: 0,
           topLinks: [],
+          failedDeliveries: [],
         });
       }
 
       const group = batchGroups.get(e.batch_id)!;
       group.total++;
       if (e.status === "sent") group.sent++;
-      else if (e.status === "failed") group.failed++;
-      else group.pending++;
+      else if (e.status === "failed") {
+        group.failed++;
+        group.failedDeliveries.push({
+          id: e.id,
+          to_email: e.to_email,
+          error: typeof e.error === "string" ? e.error : null,
+        });
+      } else group.pending++;
 
       group.opens += opensMap.get(e.id) || 0;
       if (uniqueOpensMap.has(e.id)) group.uniqueOpens++;
