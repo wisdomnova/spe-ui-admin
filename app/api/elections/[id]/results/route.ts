@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -16,12 +16,11 @@ interface RouteContext {
  *
  * NO voter identity is ever exposed.
  */
-export async function GET(_req: NextRequest, ctx: RouteContext) {
+export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     // Fetch election + positions + candidates + votes + turnout in parallel
     const [electionRes, positionsRes, candidatesRes, votesRes, assignmentsRes] = await Promise.all([

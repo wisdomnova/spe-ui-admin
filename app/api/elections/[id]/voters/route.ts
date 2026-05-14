@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -10,12 +10,11 @@ interface RouteContext {
  * GET /api/elections/[id]/voters - list voters assigned to this election
  * Returns voter data joined from the global voters table + has_voted status
  */
-export async function GET(_req: NextRequest, ctx: RouteContext) {
+export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     const { data, error } = await supabase
       .from("election_voter_assignments")
@@ -55,10 +54,9 @@ export async function GET(_req: NextRequest, ctx: RouteContext) {
  */
 export async function POST(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
     const body = await req.json();
 
     const voterIds: string[] = body.voter_ids || [];
@@ -93,10 +91,9 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
  */
 export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
     const { searchParams } = new URL(req.url);
     const voterId = searchParams.get("voter_id");
     const clearAll = searchParams.get("clear") === "true";

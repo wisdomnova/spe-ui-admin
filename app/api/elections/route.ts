@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { electionRowWithoutSecret, hashElectionAccessPassword } from "@/lib/election-access";
 
 /**
  * GET /api/elections - list all elections with summary counts
@@ -25,8 +26,9 @@ export async function GET() {
           supabase.from("election_candidates").select("id", { count: "exact", head: true }).eq("election_id", election.id),
           supabase.from("election_voter_assignments").select("id", { count: "exact", head: true }).eq("election_id", election.id),
         ]);
+        const safe = electionRowWithoutSecret(election as Record<string, unknown>);
         return {
-          ...election,
+          ...safe,
           positions_count: positions.count || 0,
           candidates_count: candidates.count || 0,
           voters_count: voters.count || 0,
@@ -56,6 +58,16 @@ export async function POST(req: NextRequest) {
       if (v) return NextResponse.json({ error: v }, { status: 400 });
     }
 
+    const accessPassword =
+      typeof body.access_password === "string" && body.access_password.trim().length > 0
+        ? body.access_password.trim()
+        : null;
+    if (accessPassword && accessPassword.length < 6) {
+      return NextResponse.json({ error: "Access password must be at least 6 characters" }, { status: 400 });
+    }
+
+    const access_password_hash = accessPassword ? await hashElectionAccessPassword(accessPassword) : null;
+
     const { data, error } = await supabase
       .from("elections")
       .insert({
@@ -65,12 +77,13 @@ export async function POST(req: NextRequest) {
         election_date: body.election_date || null,
         start_time: body.start_time || null,
         end_time: body.end_time || null,
+        access_password_hash,
       })
       .select()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json(electionRowWithoutSecret(data as Record<string, unknown>), { status: 201 });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

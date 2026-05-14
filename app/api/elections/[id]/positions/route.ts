@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -11,10 +11,9 @@ interface RouteContext {
  */
 export async function POST(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
     const body = await req.json();
 
     const { data, error } = await supabase
@@ -38,16 +37,17 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
 /**
  * DELETE /api/elections/[id]/positions - delete a position (body: { position_id })
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     const { searchParams } = new URL(req.url);
     const positionId = searchParams.get("position_id");
     if (!positionId) return NextResponse.json({ error: "position_id required" }, { status: 400 });
 
-    const { error } = await supabase.from("election_positions").delete().eq("id", positionId);
+    const { error } = await supabase.from("election_positions").delete().eq("id", positionId).eq("election_id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch {
@@ -58,10 +58,11 @@ export async function DELETE(req: NextRequest) {
 /**
  * PATCH /api/elections/[id]/positions - update a position
  */
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     const body = await req.json();
     const positionId = body.position_id;
@@ -79,6 +80,7 @@ export async function PATCH(req: NextRequest) {
       .from("election_positions")
       .update(updates)
       .eq("id", positionId)
+      .eq("election_id", id)
       .select()
       .single();
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -11,10 +11,9 @@ interface RouteContext {
  */
 export async function POST(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
     const body = await req.json();
 
     if (!body.position_id) return NextResponse.json({ error: "position_id required" }, { status: 400 });
@@ -43,16 +42,17 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
 /**
  * DELETE /api/elections/[id]/candidates?candidate_id=...
  */
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     const { searchParams } = new URL(req.url);
     const candidateId = searchParams.get("candidate_id");
     if (!candidateId) return NextResponse.json({ error: "candidate_id required" }, { status: 400 });
 
-    const { error } = await supabase.from("election_candidates").delete().eq("id", candidateId);
+    const { error } = await supabase.from("election_candidates").delete().eq("id", candidateId).eq("election_id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ success: true });
   } catch {
@@ -63,10 +63,11 @@ export async function DELETE(req: NextRequest) {
 /**
  * PATCH /api/elections/[id]/candidates - update a candidate
  */
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest, ctx: RouteContext) {
   try {
-    const session = await getSession();
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await ctx.params;
+    const block = await requireSessionAndElectionUnlock(req, id);
+    if (block) return block;
 
     const body = await req.json();
     const candidateId = body.candidate_id;
@@ -86,6 +87,7 @@ export async function PATCH(req: NextRequest) {
       .from("election_candidates")
       .update(updates)
       .eq("id", candidateId)
+      .eq("election_id", id)
       .select()
       .single();
 

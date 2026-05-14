@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
   Upload,
   FileDown,
+  Lock,
 } from "lucide-react";
 import VoterPicker from "@/components/VoterPicker";
 import MediaPickerModal from "@/components/cms/MediaPickerModal";
@@ -61,6 +62,8 @@ interface Election {
   start_time: string | null;
   end_time: string | null;
   created_at: string;
+  /** True when an access password is configured (never receives the hash). */
+  has_access_password?: boolean;
   positions_count: number;
   candidates_count: number;
   voters_count: number;
@@ -171,6 +174,27 @@ function validateSchedule(date: string, startTime: string, endTime: string): str
   return null;
 }
 
+const SPE_ELECTION_UNLOCK_PREFIX = "spe_election_unlock:";
+
+function getElectionUnlockToken(electionId: string): string | null {
+  if (typeof window === "undefined") return null;
+  return sessionStorage.getItem(SPE_ELECTION_UNLOCK_PREFIX + electionId);
+}
+
+function setElectionUnlockToken(electionId: string, token: string) {
+  sessionStorage.setItem(SPE_ELECTION_UNLOCK_PREFIX + electionId, token);
+}
+
+function clearElectionUnlockToken(electionId: string) {
+  sessionStorage.removeItem(SPE_ELECTION_UNLOCK_PREFIX + electionId);
+}
+
+/** Use on election-scoped API calls when the election may be password-gated. */
+function electionAuthHeaders(electionId: string): Record<string, string> {
+  const t = getElectionUnlockToken(electionId);
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 export default function ElectionsPage() {
   const [elections, setElections] = useState<Election[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,6 +211,12 @@ export default function ElectionsPage() {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [newAccessPassword, setNewAccessPassword] = useState("");
+  const [newAccessPasswordConfirm, setNewAccessPasswordConfirm] = useState("");
+  const [passwordGateElectionId, setPasswordGateElectionId] = useState<string | null>(null);
+  const [gatePassword, setGatePassword] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [gateLoading, setGateLoading] = useState(false);
 
   useEffect(() => {
     fetchElections();
@@ -211,6 +241,17 @@ export default function ElectionsPage() {
       if (err) { setCreateError(err); return; }
     }
 
+    if (newAccessPassword || newAccessPasswordConfirm) {
+      if (newAccessPassword.length < 6) {
+        setCreateError("Access password must be at least 6 characters.");
+        return;
+      }
+      if (newAccessPassword !== newAccessPasswordConfirm) {
+        setCreateError("Access password and confirmation do not match.");
+        return;
+      }
+    }
+
     setCreating(true);
     try {
       const res = await fetch("/api/elections", {
@@ -222,6 +263,7 @@ export default function ElectionsPage() {
           election_date: newDate || null,
           start_time: newStartTime || null,
           end_time: newEndTime || null,
+          access_password: newAccessPassword.trim() || undefined,
         }),
       });
       if (res.ok) {
@@ -230,6 +272,8 @@ export default function ElectionsPage() {
         setNewDate("");
         setNewStartTime("");
         setNewEndTime("");
+        setNewAccessPassword("");
+        setNewAccessPasswordConfirm("");
         setCreateError("");
         setShowCreate(false);
         fetchElections();
@@ -243,7 +287,17 @@ export default function ElectionsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this election and all its data? This cannot be undone.")) return;
-    await fetch(`/api/elections/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/elections/${id}`, { method: "DELETE", headers: electionAuthHeaders(id) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 403 && d?.requiresPassword) {
+        setPasswordGateElectionId(id);
+        setGatePassword("");
+        setGateError("Enter the access password to delete this election.");
+      }
+      return;
+    }
+    clearElectionUnlockToken(id);
     if (selected?.id === id) setSelected(null);
     fetchElections();
   };
@@ -251,7 +305,17 @@ export default function ElectionsPage() {
   const openElection = async (id: string) => {
     setDetailLoading(true);
     try {
-      const res = await fetch(`/api/elections/${id}`);
+      const res = await fetch(`/api/elections/${id}`, { headers: electionAuthHeaders(id) });
+      if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (d?.requiresPassword) {
+          clearElectionUnlockToken(id);
+          setPasswordGateElectionId(id);
+          setGatePassword("");
+          setGateError("");
+          return;
+        }
+      }
       if (res.ok) setSelected(await res.json());
     } catch {}
     setDetailLoading(false);
@@ -260,9 +324,47 @@ export default function ElectionsPage() {
   const refreshDetail = async () => {
     if (!selected) return;
     try {
-      const res = await fetch(`/api/elections/${selected.id}`);
+      const res = await fetch(`/api/elections/${selected.id}`, { headers: electionAuthHeaders(selected.id) });
+      if (res.status === 403) {
+        const d = await res.json().catch(() => ({}));
+        if (d?.requiresPassword) {
+          const sid = selected.id;
+          clearElectionUnlockToken(sid);
+          setSelected(null);
+          setPasswordGateElectionId(sid);
+          setGatePassword("");
+          setGateError("");
+          return;
+        }
+      }
       if (res.ok) setSelected(await res.json());
     } catch {}
+  };
+
+  const submitElectionGatePassword = async () => {
+    if (!passwordGateElectionId || !gatePassword) return;
+    setGateLoading(true);
+    setGateError("");
+    try {
+      const res = await fetch(`/api/elections/${passwordGateElectionId}/unlock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: gatePassword }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setGateError(typeof d.error === "string" ? d.error : "Could not unlock");
+        return;
+      }
+      setElectionUnlockToken(passwordGateElectionId, d.token);
+      setPasswordGateElectionId(null);
+      setGatePassword("");
+      setSelected(d.election);
+    } catch {
+      setGateError("Network error");
+    } finally {
+      setGateLoading(false);
+    }
   };
 
   // ── LIST VIEW ──
@@ -318,6 +420,33 @@ export default function ElectionsPage() {
                       />
                     </div>
 
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                        Access password <span className="text-gray-300 normal-case font-medium">(optional)</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 mb-2">
+                        If set, anyone opening this election in the admin must enter this password (min 6 characters).
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={newAccessPassword}
+                          onChange={(e) => { setNewAccessPassword(e.target.value); setCreateError(""); }}
+                          placeholder="Leave blank for none"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={newAccessPasswordConfirm}
+                          onChange={(e) => { setNewAccessPasswordConfirm(e.target.value); setCreateError(""); }}
+                          placeholder="Confirm password"
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                        />
+                      </div>
+                    </div>
+
                     {/* Schedule Fields */}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -365,7 +494,7 @@ export default function ElectionsPage() {
 
                     <div className="flex gap-3 justify-end">
                       <button
-                        onClick={() => { setShowCreate(false); setCreateError(""); }}
+                        onClick={() => { setShowCreate(false); setCreateError(""); setNewAccessPassword(""); setNewAccessPasswordConfirm(""); }}
                         className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50"
                       >
                         Cancel
@@ -421,6 +550,11 @@ export default function ElectionsPage() {
                             {timeTag}
                           </span>
                         )}
+                        {election.has_access_password && (
+                          <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-100 text-slate-600 flex items-center gap-1 shrink-0" title="Access password required to open">
+                            <Lock size={10} /> Protected
+                          </span>
+                        )}
                       </div>
                       {election.description && (
                         <p className="text-sm text-gray-400 font-medium truncate mb-3">{election.description}</p>
@@ -449,14 +583,30 @@ export default function ElectionsPage() {
                           if (election.status === "Completed") return;
                           setTogglingId(election.id);
                           const newVal = !election.is_open;
+                          const prevOpen = election.is_open;
                           setElections((prev) => prev.map((el) => el.id === election.id ? { ...el, is_open: newVal } : el));
                           try {
-                            await fetch(`/api/elections/${election.id}`, {
+                            const res = await fetch(`/api/elections/${election.id}`, {
                               method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
+                              headers: { "Content-Type": "application/json", ...electionAuthHeaders(election.id) },
                               body: JSON.stringify({ is_open: newVal }),
                             });
-                          } catch {}
+                            if (!res.ok) {
+                              const d = await res.json().catch(() => ({}));
+                              setElections((prev) =>
+                                prev.map((el) => (el.id === election.id ? { ...el, is_open: prevOpen } : el))
+                              );
+                              if (res.status === 403 && d?.requiresPassword) {
+                                setPasswordGateElectionId(election.id);
+                                setGatePassword("");
+                                setGateError("Enter the access password to change this election.");
+                              }
+                            }
+                          } catch {
+                            setElections((prev) =>
+                              prev.map((el) => (el.id === election.id ? { ...el, is_open: prevOpen } : el))
+                            );
+                          }
                           setTogglingId(null);
                         }}
                         disabled={togglingId === election.id || election.status === "Completed"}
@@ -500,6 +650,63 @@ export default function ElectionsPage() {
             </div>
           )}
         </motion.div>
+
+        {passwordGateElectionId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-2xl max-w-md w-full p-8 space-y-5">
+              <div className="flex items-center gap-3 text-blue-600">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center">
+                  <Lock size={22} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Election locked</h3>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {elections.find((e) => e.id === passwordGateElectionId)?.title || "This election"} requires an access password.
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Password</label>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={gatePassword}
+                  onChange={(e) => { setGatePassword(e.target.value); setGateError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && submitElectionGatePassword()}
+                  className="mt-1 w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium focus:border-blue-500 outline-none"
+                  placeholder="Enter access password"
+                />
+              </div>
+              {gateError && (
+                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-xl text-sm font-medium">
+                  <AlertCircle size={14} /> {gateError}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordGateElectionId(null);
+                    setGatePassword("");
+                    setGateError("");
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={gateLoading || !gatePassword}
+                  onClick={submitElectionGatePassword}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {gateLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Unlock
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -516,7 +723,11 @@ export default function ElectionsPage() {
   return (
     <ElectionDetail
       election={selected}
-      onBack={() => { setSelected(null); fetchElections(); }}
+      onBack={() => {
+        clearElectionUnlockToken(selected.id);
+        setSelected(null);
+        fetchElections();
+      }}
       onRefresh={refreshDetail}
     />
   );
@@ -575,7 +786,7 @@ function ElectionDetail({
     try {
       await fetch(`/api/elections/${election.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...electionAuthHeaders(election.id) },
         body: JSON.stringify({ status: nextStatus, is_open: nextIsOpen }),
       });
       onRefresh();
@@ -591,7 +802,7 @@ function ElectionDetail({
     setSchedSaving(true);
     const res = await fetch(`/api/elections/${election.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...electionAuthHeaders(election.id) },
       body: JSON.stringify({ election_date: schedDate, start_time: schedStart, end_time: schedEnd }),
     });
     if (res.ok) {
@@ -612,7 +823,7 @@ function ElectionDetail({
     try {
       const res = await fetch(`/api/elections/${election.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...electionAuthHeaders(election.id) },
         body: JSON.stringify({ show_live_voter_names: next }),
       });
       if (!res.ok) {
@@ -631,7 +842,7 @@ function ElectionDetail({
     setSchedSaving(true);
     const res = await fetch(`/api/elections/${election.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...electionAuthHeaders(election.id) },
       body: JSON.stringify({ election_date: null, start_time: null, end_time: null }),
     });
     if (res.ok) {
@@ -887,7 +1098,7 @@ function PositionsTab({ electionId, positions, onRefresh }: { electionId: string
     setAdding(true);
     const res = await fetch(`/api/elections/${electionId}/positions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...electionAuthHeaders(electionId) },
       body: JSON.stringify({ title: title.trim(), description: desc.trim() || null, sort_order: items.length }),
     });
     if (res.ok) {
@@ -904,7 +1115,10 @@ function PositionsTab({ electionId, positions, onRefresh }: { electionId: string
     if (!confirm("Delete this position and all its candidates?")) return;
     const prevItems = items;
     setItems((prev) => prev.filter((pos) => pos.id !== positionId));
-    const res = await fetch(`/api/elections/${electionId}/positions?position_id=${positionId}`, { method: "DELETE" });
+    const res = await fetch(`/api/elections/${electionId}/positions?position_id=${positionId}`, {
+      method: "DELETE",
+      headers: electionAuthHeaders(electionId),
+    });
     if (!res.ok) {
       setItems(prevItems);
       return;
@@ -932,7 +1146,7 @@ function PositionsTab({ electionId, positions, onRefresh }: { electionId: string
     );
     const res = await fetch(`/api/elections/${electionId}/positions`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...electionAuthHeaders(electionId) },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1172,7 +1386,7 @@ function CandidatesTab({
       const createRequests = validDrafts.map((row) =>
         fetch(`/api/elections/${electionId}/candidates`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...electionAuthHeaders(electionId) },
           body: JSON.stringify({
             position_id: positionId,
             name: row.name,
@@ -1204,7 +1418,7 @@ function CandidatesTab({
       setItems((prev) => prev.map((cand) => (cand.id === editingId ? { ...cand, ...patch } : cand)));
       const res = await fetch(`/api/elections/${electionId}/candidates`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...electionAuthHeaders(electionId) },
         body: JSON.stringify({ candidate_id: editingId, ...patch }),
       });
       if (!res.ok) {
@@ -1223,7 +1437,10 @@ function CandidatesTab({
     if (!confirm("Remove this candidate?")) return;
     const prevItems = items;
     setItems((prev) => prev.filter((cand) => cand.id !== candidateId));
-    const res = await fetch(`/api/elections/${electionId}/candidates?candidate_id=${candidateId}`, { method: "DELETE" });
+    const res = await fetch(`/api/elections/${electionId}/candidates?candidate_id=${candidateId}`, {
+      method: "DELETE",
+      headers: electionAuthHeaders(electionId),
+    });
     if (!res.ok) {
       setItems(prevItems);
       return;
@@ -1569,7 +1786,7 @@ function VotersTab({
   const handleAssign = async (voterIds: string[]) => {
     await fetch(`/api/elections/${electionId}/voters`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...electionAuthHeaders(electionId) },
       body: JSON.stringify({ voter_ids: voterIds }),
     });
     setShowPicker(false);
@@ -1577,13 +1794,19 @@ function VotersTab({
   };
 
   const handleUnassign = async (voterId: string) => {
-    await fetch(`/api/elections/${electionId}/voters?voter_id=${voterId}`, { method: "DELETE" });
+    await fetch(`/api/elections/${electionId}/voters?voter_id=${voterId}`, {
+      method: "DELETE",
+      headers: electionAuthHeaders(electionId),
+    });
     onRefresh();
   };
 
   const handleClearAll = async () => {
     if (!confirm(`Unassign all ${voters.length} voters from this election?`)) return;
-    await fetch(`/api/elections/${electionId}/voters?clear=true`, { method: "DELETE" });
+    await fetch(`/api/elections/${electionId}/voters?clear=true`, {
+      method: "DELETE",
+      headers: electionAuthHeaders(electionId),
+    });
     onRefresh();
   };
 
@@ -1826,7 +2049,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
   const fetchResults = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const res = await fetch(`/api/elections/${electionId}/results`);
+      const res = await fetch(`/api/elections/${electionId}/results`, { headers: electionAuthHeaders(electionId) });
       if (res.ok) setData(await res.json());
     } catch {}
     setLoading(false);

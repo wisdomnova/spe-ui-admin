@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { assertElectionUnlockedOrNoPassword, electionRowWithoutSecret, hashElectionAccessPassword } from "@/lib/election-access";
+import { fetchElectionDetailForAdmin } from "@/lib/election-detail";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -8,49 +10,22 @@ interface RouteContext {
 
 /**
  * GET /api/elections/[id] - get a single election with all related data
+ * When an access password is set, send `Authorization: Bearer <token>` from POST .../unlock.
  */
-export async function GET(_req: NextRequest, ctx: RouteContext) {
+export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await ctx.params;
 
-    const [electionRes, positionsRes, candidatesRes, votersRes] = await Promise.all([
-      supabase.from("elections").select("*").eq("id", id).single(),
-      supabase.from("election_positions").select("*").eq("election_id", id).order("sort_order"),
-      supabase.from("election_candidates").select("*").eq("election_id", id).order("created_at"),
-      supabase.from("election_voter_assignments")
-        .select("id, election_id, voter_id, has_voted, created_at, voters(id, name, matric_number, email, level, department)")
-        .eq("election_id", id)
-        .order("created_at", { ascending: false }),
-    ]);
+    const blocked = await assertElectionUnlockedOrNoPassword(req, id);
+    if (blocked) return blocked;
 
-    if (electionRes.error) return NextResponse.json({ error: electionRes.error.message }, { status: 404 });
+    const detail = await fetchElectionDetailForAdmin(id);
+    if (!detail.ok) return NextResponse.json({ error: detail.error }, { status: detail.status });
 
-    // Flatten voter assignments
-    const voters = (votersRes.data || []).map((row: Record<string, unknown>) => {
-      const voter = row.voters as Record<string, unknown> | null;
-      return {
-        assignment_id: row.id,
-        election_id: row.election_id,
-        voter_id: row.voter_id,
-        has_voted: row.has_voted,
-        assigned_at: row.created_at,
-        name: voter?.name || "",
-        matric_number: voter?.matric_number || "",
-        email: voter?.email || "",
-        level: voter?.level || null,
-        department: voter?.department || null,
-      };
-    });
-
-    return NextResponse.json({
-      ...electionRes.data,
-      positions: positionsRes.data || [],
-      candidates: candidatesRes.data || [],
-      voters,
-    });
+    return NextResponse.json(detail.data);
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -65,6 +40,10 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await ctx.params;
+
+    const blocked = await assertElectionUnlockedOrNoPassword(req, id);
+    if (blocked) return blocked;
+
     const body = await req.json();
 
     // Fetch current election to validate against
@@ -98,9 +77,21 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       if (v) return NextResponse.json({ error: v }, { status: 400 });
     }
 
+    if (body.access_password_clear === true) {
+      updates.access_password_hash = null;
+    } else if (typeof body.access_password === "string") {
+      const p = body.access_password.trim();
+      if (p.length > 0) {
+        if (p.length < 6) {
+          return NextResponse.json({ error: "Access password must be at least 6 characters" }, { status: 400 });
+        }
+        updates.access_password_hash = await hashElectionAccessPassword(p);
+      }
+    }
+
     const { data, error } = await supabase.from("elections").update(updates).eq("id", id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data);
+    return NextResponse.json(electionRowWithoutSecret(data as Record<string, unknown>));
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -143,12 +134,15 @@ function validateElectionTimes(
 /**
  * DELETE /api/elections/[id] - delete an election (cascades to positions, candidates, voters)
  */
-export async function DELETE(_req: NextRequest, ctx: RouteContext) {
+export async function DELETE(req: NextRequest, ctx: RouteContext) {
   try {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await ctx.params;
+
+    const blocked = await assertElectionUnlockedOrNoPassword(req, id);
+    if (blocked) return blocked;
 
     const { error } = await supabase.from("elections").delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
