@@ -1785,6 +1785,37 @@ function buildVoteChartTicks(yMax: number): number[] {
   return ticks;
 }
 
+/** SPE UI logo for election PDF backgrounds; baked opacity so text stays readable. */
+const ELECTION_PDF_WATERMARK_PATH = "/election-pdf-watermark.png";
+const ELECTION_PDF_WATERMARK_OPACITY = 0.11;
+
+async function buildElectionPdfWatermarkDataUrl(imageSrc: string): Promise<{ dataUrl: string; aspect: number } | null> {
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.crossOrigin = "anonymous";
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("watermark image load failed"));
+      el.src = imageSrc;
+    });
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalAlpha = ELECTION_PDF_WATERMARK_OPACITY;
+    ctx.drawImage(img, 0, 0);
+    ctx.globalAlpha = 1;
+    return { dataUrl: canvas.toDataURL("image/png"), aspect: h / w };
+  } catch {
+    return null;
+  }
+}
+
 function ResultsTab({ electionId }: { electionId: string }) {
   const [data, setData] = useState<ResultsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1824,6 +1855,24 @@ function ResultsTab({ electionId }: { electionId: string }) {
       logoDataUrl = null;
     }
 
+    const watermarkUrl = `${window.location.origin}${ELECTION_PDF_WATERMARK_PATH}`;
+    const watermark = await buildElectionPdfWatermarkDataUrl(watermarkUrl);
+
+    const drawWatermark = () => {
+      if (!watermark) return;
+      const maxW = pageWidth * 0.82;
+      const maxH = pageHeight * 0.52;
+      let drawW = maxW;
+      let drawH = drawW * watermark.aspect;
+      if (drawH > maxH) {
+        drawH = maxH;
+        drawW = drawH / watermark.aspect;
+      }
+      const x = (pageWidth - drawW) / 2;
+      const y = (pageHeight - drawH) / 2;
+      pdf.addImage(watermark.dataUrl, "PNG", x, y, drawW, drawH);
+    };
+
     const drawFooter = (pageNum: number) => {
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
@@ -1857,6 +1906,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
     const timeWindow = `${data.election.start_time || "N/A"} - ${data.election.end_time || "N/A"}`;
 
     // Page 1: title-only cover
+    drawWatermark();
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor(11, 58, 143);
     pdf.setFontSize(34);
@@ -1868,6 +1918,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
 
     // Page 2: Election Overview
     pdf.addPage();
+    drawWatermark();
     drawHeaderBrand();
 
     pdf.setFont("helvetica", "bold");
@@ -1911,6 +1962,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
 
     positionsForPdf.forEach((pos, idx) => {
       pdf.addPage();
+      drawWatermark();
       drawHeaderBrand();
 
       const rows = (pos.candidates.length
