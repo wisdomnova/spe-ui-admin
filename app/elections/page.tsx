@@ -252,6 +252,7 @@ export default function ElectionsPage() {
       }
     }
 
+    const accessPasswordPlain = newAccessPassword.trim();
     setCreating(true);
     try {
       const res = await fetch("/api/elections", {
@@ -263,10 +264,26 @@ export default function ElectionsPage() {
           election_date: newDate || null,
           start_time: newStartTime || null,
           end_time: newEndTime || null,
-          access_password: newAccessPassword.trim() || undefined,
+          access_password: accessPasswordPlain || undefined,
         }),
       });
       if (res.ok) {
+        const created = await res.json();
+        if (accessPasswordPlain && created?.id) {
+          try {
+            const unlockRes = await fetch(`/api/elections/${created.id}/unlock`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: accessPasswordPlain }),
+            });
+            if (unlockRes.ok) {
+              const unlockData = await unlockRes.json();
+              if (unlockData.token) setElectionUnlockToken(created.id, unlockData.token);
+            }
+          } catch {
+            // List still works; user can unlock manually
+          }
+        }
         setNewTitle("");
         setNewDesc("");
         setNewDate("");
@@ -317,8 +334,11 @@ export default function ElectionsPage() {
         }
       }
       if (res.ok) setSelected(await res.json());
-    } catch {}
-    setDetailLoading(false);
+    } catch {
+      // ignore
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const refreshDetail = async () => {
@@ -359,6 +379,7 @@ export default function ElectionsPage() {
       setElectionUnlockToken(passwordGateElectionId, d.token);
       setPasswordGateElectionId(null);
       setGatePassword("");
+      setDetailLoading(false);
       setSelected(d.election);
     } catch {
       setGateError("Network error");
