@@ -1,3 +1,4 @@
+import { ledgerBallotCountForElection } from "@/lib/election-ledger-ballots";
 import { fetchAllElectionAssignmentsWithVotersFlat } from "@/lib/postgrest-election-pagination";
 import { supabase } from "@/lib/supabase";
 import { electionRowWithoutSecret } from "@/lib/election-access";
@@ -6,11 +7,12 @@ export async function fetchElectionDetailForAdmin(id: string): Promise<
   | { ok: true; data: Record<string, unknown> }
   | { ok: false; status: number; error: string }
 > {
-  const [electionRes, positionsRes, candidatesRes, votersBundle] = await Promise.all([
+  const [electionRes, positionsRes, candidatesRes, votersBundle, ballotsCounted] = await Promise.all([
     supabase.from("elections").select("*").eq("id", id).single(),
     supabase.from("election_positions").select("*").eq("election_id", id).order("sort_order"),
     supabase.from("election_candidates").select("*").eq("election_id", id).order("created_at"),
     fetchAllElectionAssignmentsWithVotersFlat(id),
+    ledgerBallotCountForElection(id).catch(() => undefined as number | undefined),
   ]);
 
   if (electionRes.error) {
@@ -30,6 +32,7 @@ export async function fetchElectionDetailForAdmin(id: string): Promise<
       positions: positionsRes.data || [],
       candidates: candidatesRes.data || [],
       voters: votersBundle.voters,
+      ...(typeof ballotsCounted === "number" ? { ballots_counted: ballotsCounted } : {}),
     },
   };
 }

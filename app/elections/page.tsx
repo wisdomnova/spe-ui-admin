@@ -117,6 +117,8 @@ interface ElectionDetail extends Election {
   positions: Position[];
   candidates: Candidate[];
   voters: Voter[];
+  /** Min ballot count from election_votes per position; aligns with Results when roll flags lag. */
+  ballots_counted?: number;
 }
 
 const TIME_TAG_COLORS: Record<string, string> = {
@@ -1089,7 +1091,12 @@ function ElectionDetail({
           <CandidatesTab electionId={election.id} positions={election.positions} candidates={election.candidates} onRefresh={onRefresh} />
         )}
         {tab === "voters" && (
-          <VotersTab electionId={election.id} voters={election.voters} onRefresh={onRefresh} />
+          <VotersTab
+            electionId={election.id}
+            voters={election.voters}
+            ballotsCounted={election.ballots_counted}
+            onRefresh={onRefresh}
+          />
         )}
         {tab === "results" && (
           <ResultsTab electionId={election.id} />
@@ -1793,10 +1800,12 @@ function CandidatesTab({
 function VotersTab({
   electionId,
   voters,
+  ballotsCounted,
   onRefresh,
 }: {
   electionId: string;
   voters: Voter[];
+  ballotsCounted?: number;
   onRefresh: () => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
@@ -1837,7 +1846,15 @@ function VotersTab({
     return v.name.toLowerCase().includes(q) || v.matric_number.toLowerCase().includes(q) || v.email.toLowerCase().includes(q);
   });
 
-  const votedCount = voters.filter((v) => v.has_voted).length;
+  const rollVotedCount = voters.filter((v) => v.has_voted).length;
+  const aggregateVoted =
+    typeof ballotsCounted === "number" && Number.isFinite(ballotsCounted) ? ballotsCounted : rollVotedCount;
+  const turnoutRatio =
+    voters.length > 0 ? Math.min(Math.max(aggregateVoted / voters.length, 0), 1) : 0;
+  const ledgerMismatch =
+    typeof ballotsCounted === "number" &&
+    Number.isFinite(ballotsCounted) &&
+    ballotsCounted !== rollVotedCount;
 
   return (
     <div className="space-y-6">
@@ -1848,8 +1865,14 @@ function VotersTab({
             <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-1">Assigned Voters</h3>
             <p className="text-xs text-gray-400 font-medium">
               Pick voters from the global pool to assign to this election.
-              {voters.length > 0 && ` ${votedCount} of ${voters.length} have voted.`}
+              {voters.length > 0 && ` ${aggregateVoted} of ${voters.length} have voted.`}
             </p>
+            {/* {ledgerMismatch && (
+              <p className="text-[11px] text-amber-700/90 font-medium mt-1.5 max-w-xl">
+                Ballot ledger shows {ballotsCounted} complete ballots; the roll marks {rollVotedCount} as voted (may
+                differ if a ballot was recorded before assignment flags synced).
+              </p>
+            )} */}
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -1875,13 +1898,13 @@ function VotersTab({
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Voting Progress</span>
               <span className="text-xs font-bold text-gray-500">
-                {votedCount}/{voters.length} ({voters.length > 0 ? Math.round((votedCount / voters.length) * 100) : 0}%)
+                {aggregateVoted}/{voters.length} ({Math.round(turnoutRatio * 100)}%)
               </span>
             </div>
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                style={{ width: `${voters.length > 0 ? (votedCount / voters.length) * 100 : 0}%` }}
+                style={{ width: `${turnoutRatio * 100}%` }}
               />
             </div>
           </div>
