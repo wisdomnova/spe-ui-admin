@@ -148,6 +148,27 @@ function formatTime12(time24: string) {
   return `${h12}:${m} ${ampm}`;
 }
 
+/** DB times like "10:00:00" → "10am"; "15:00:00" → "3pm" (lowercase; minutes only if non-zero). */
+function formatTime12CompactLower(time24: string | null | undefined): string | null {
+  if (time24 == null || !String(time24).trim()) return null;
+  const parts = String(time24).trim().split(":");
+  const hour = parseInt(parts[0], 10);
+  const minute = parseInt(parts[1] ?? "0", 10);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return String(time24);
+  const h24 = ((hour % 24) + 24) % 24;
+  const period = h24 >= 12 ? "pm" : "am";
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  if (minute === 0) return `${h12}${period}`;
+  return `${h12}:${String(minute).padStart(2, "0")}${period}`;
+}
+
+function formatVotingPeriodPdf(start: string | null | undefined, end: string | null | undefined): string {
+  const a = formatTime12CompactLower(start);
+  const b = formatTime12CompactLower(end);
+  if (!a && !b) return "N/A";
+  return `${a ?? "N/A"} - ${b ?? "N/A"}`;
+}
+
 function formatDateNice(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "short",
@@ -2180,7 +2201,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
       });
     })();
 
-    const timeWindow = `${data.election.start_time || "N/A"} - ${data.election.end_time || "N/A"}`;
+    const timeWindow = formatVotingPeriodPdf(data.election.start_time, data.election.end_time);
 
     // Page 1: title-only cover
     drawWatermark();
@@ -2207,17 +2228,8 @@ function ResultsTab({ electionId }: { electionId: string }) {
       ["Election Title:", String(data.election.title || "N/A")],
       ["Election Date:", prettyDate],
       ["Total Registered Voters:", String(data.turnout.total_voters ?? 0)],
-      ["Ballots counted (anonymous ledger):", String(data.turnout.voted ?? 0)],
-      ["Eligible not yet voted (by assignment list):", String(data.turnout.not_voted ?? 0)],
-      [
-        "Vote rows per race (min–max):",
-        data.turnout.vote_tally_min != null && data.turnout.vote_tally_max != null
-          ? data.turnout.vote_tally_min === data.turnout.vote_tally_max
-            ? String(data.turnout.vote_tally_min)
-            : `${data.turnout.vote_tally_min} – ${data.turnout.vote_tally_max}`
-          : "—",
-      ],
-      ["Total selections (all races):", String(data.total_votes ?? 0)],
+      ["Ballots counted:", String(data.turnout.voted ?? 0)],
+      ["Not voted:", String(data.turnout.not_voted ?? 0)],
       ["Voting Period:", timeWindow],
     ];
 
