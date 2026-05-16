@@ -21,7 +21,8 @@ interface RouteContext {
  * Vote rows and assignments are fetched with pagination (PostgREST default row cap ~1000).
  * PDF export and UI use this payload only — totals match the full ballot set.
  *
- * NO voter identity is ever exposed.
+ * Turnout "voted" = ballots implied by anonymous vote rows (min count across races),
+ * aligned with per-position charts and public Final Turnout (get_election_list_counts).
  */
 export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
@@ -51,10 +52,8 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     const assignments = assignmentsBundle.rows;
 
     const totalVoters = assignments.length;
-    const votedCount = assignments.filter((a: { has_voted: boolean }) => a.has_voted).length;
-    const turnoutPercent = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
 
-    // Build per-position results
+    // Build per-position results first — turnout uses same ledger as charts.
     const positionResults = positions.map((pos) => {
       const posCandidates = candidates.filter((c) => c.position_id === pos.id);
       const posVotes = votes.filter((v) => v.position_id === pos.id);
@@ -100,6 +99,15 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       };
     });
 
+    const positionTotals = positionResults.map((p) => p.total_votes);
+    const voteTallyMin = positionTotals.length === 0 ? 0 : Math.min(...positionTotals);
+    const voteTallyMax = positionTotals.length === 0 ? 0 : Math.max(...positionTotals);
+
+    const ballotsFromLedger = voteTallyMin;
+    const votedCount = ballotsFromLedger;
+    const notVotedCount = Math.max(0, totalVoters - votedCount);
+    const turnoutPercent = totalVoters > 0 ? Math.round((votedCount / totalVoters) * 100) : 0;
+
     const timeline: Record<string, number> = {};
     for (const vote of votes) {
       const hour = new Date(vote.created_at).toISOString().slice(0, 13) + ":00";
@@ -109,17 +117,26 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([time, count]) => ({ time, count }));
 
-    return NextResponse.json({
+    const payload = {
       election: electionRes.data,
       turnout: {
         total_voters: totalVoters,
         voted: votedCount,
-        not_voted: totalVoters - votedCount,
+        not_voted: notVotedCount,
         percentage: turnoutPercent,
+        vote_tally_min: voteTallyMin,
+        vote_tally_max: voteTallyMax,
       },
       positions: positionResults,
       timeline: timelineArray,
       total_votes: votes.length,
+    };
+
+    return NextResponse.json(payload, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+      },
     });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

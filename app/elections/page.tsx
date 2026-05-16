@@ -1994,7 +1994,14 @@ function VotersTab({
 
 interface ResultsData {
   election: { id: string; title: string; status: string; election_date: string | null; start_time: string | null; end_time: string | null };
-  turnout: { total_voters: number; voted: number; not_voted: number; percentage: number };
+  turnout: {
+    total_voters: number;
+    voted: number;
+    not_voted: number;
+    percentage: number;
+    vote_tally_min?: number;
+    vote_tally_max?: number;
+  };
   positions: PositionResult[];
   timeline: { time: string; count: number }[];
   total_votes: number;
@@ -2070,7 +2077,10 @@ function ResultsTab({ electionId }: { electionId: string }) {
   const fetchResults = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
-      const res = await fetch(`/api/elections/${electionId}/results`, { headers: electionAuthHeaders(electionId) });
+      const res = await fetch(`/api/elections/${electionId}/results`, {
+        headers: electionAuthHeaders(electionId),
+        cache: "no-store",
+      });
       if (res.ok) setData(await res.json());
     } catch {}
     setLoading(false);
@@ -2174,9 +2184,17 @@ function ResultsTab({ electionId }: { electionId: string }) {
       ["Election Title:", String(data.election.title || "N/A")],
       ["Election Date:", prettyDate],
       ["Total Registered Voters:", String(data.turnout.total_voters ?? 0)],
-      ["Voter Turnout (submitted ballots):", String(data.turnout.voted ?? 0)],
-      ["Eligible Not Yet Submitted:", String(data.turnout.not_voted ?? 0)],
-      ["Selections Recorded (all races):", String(data.total_votes ?? 0)],
+      ["Ballots counted (anonymous ledger):", String(data.turnout.voted ?? 0)],
+      ["Eligible not yet voted (by assignment list):", String(data.turnout.not_voted ?? 0)],
+      [
+        "Vote rows per race (min–max):",
+        data.turnout.vote_tally_min != null && data.turnout.vote_tally_max != null
+          ? data.turnout.vote_tally_min === data.turnout.vote_tally_max
+            ? String(data.turnout.vote_tally_min)
+            : `${data.turnout.vote_tally_min} – ${data.turnout.vote_tally_max}`
+          : "—",
+      ],
+      ["Total selections (all races):", String(data.total_votes ?? 0)],
       ["Voting Period:", timeWindow],
     ];
 
@@ -2290,6 +2308,10 @@ function ResultsTab({ electionId }: { electionId: string }) {
   }
 
   const { turnout, positions, timeline, total_votes } = data;
+  const tallyMin = turnout.vote_tally_min ?? turnout.voted;
+  const tallyMax = turnout.vote_tally_max ?? turnout.voted;
+  const tallySpread = tallyMin !== tallyMax;
+  const racesAligned = !tallySpread && positions.length > 0;
   const maxTimelineCount = Math.max(...timeline.map((t) => t.count), 1);
   const selectedPosition = positions.find((pos) => pos.id === selectedPositionId) || positions[0] || null;
   const displayCandidates = selectedPosition?.candidates?.length
@@ -2316,6 +2338,10 @@ function ResultsTab({ electionId }: { electionId: string }) {
     votes: c.votes,
     fill: c.id === "placeholder" ? "#cbd5e1" : c.id === "none_of_above" ? "#f59e0b" : "#3b82f6",
   }));
+
+  const listVoteSum = displayCandidates
+    .filter((c) => c.id !== "placeholder")
+    .reduce((acc, c) => acc + c.votes, 0);
 
   return (
     <div className="space-y-6">
@@ -2353,7 +2379,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
           </div>
           <div>
             <p className="text-3xl font-black text-emerald-600">{turnout.voted}</p>
-            <p className="text-xs font-bold text-gray-400 mt-1">Voted</p>
+            <p className="text-xs font-bold text-gray-400 mt-1">Ballots counted</p>
           </div>
           <div>
             <p className="text-3xl font-black text-gray-400">{turnout.not_voted}</p>
@@ -2364,15 +2390,29 @@ function ResultsTab({ electionId }: { electionId: string }) {
             <p className="text-xs font-bold text-gray-400 mt-1">Selections (all races)</p>
           </div>
         </div>
+
+        {tallySpread && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/90 px-4 py-3 text-[11px] text-amber-950 leading-relaxed">
+            <p className="font-black uppercase tracking-wider text-amber-900 mb-1.5">
+              Races show different vote totals ({tallyMin}–{tallyMax})
+            </p>
+            <p>
+              Ballots counted uses the <span className="font-semibold">minimum</span> across races ({tallyMin}). Review positions with higher totals
+              before publishing final numbers.
+            </p>
+          </div>
+        )}
+
+        {racesAligned && (
+          <p className="mt-5 text-[11px] font-semibold text-emerald-700">
+            Every race has the same vote depth ({turnout.voted}); turnout matches charts.
+          </p>
+        )}
+
         <p className="mt-4 text-[11px] text-gray-400 leading-relaxed max-w-3xl">
-          <span className="font-bold text-gray-500">How to read this:</span>{" "}
-          <span className="font-semibold text-gray-600">Voted</span> is the number of assigned voters marked as having submitted a ballot.{" "}
-          Each position below counts only rows in that race (one row per voter per race). Those numbers can be lower than{" "}
-          <span className="font-semibold text-gray-600">Voted</span> if a race was added after some people had already voted, or if legacy data
-          is missing rows for a race. <span className="font-semibold text-gray-600">Selections (all races)</span> is the sum of every vote row
-          across all races (not “ballots × positions” as a separate meaning — it is literally row count). When everyone completes every race,
-          expect selections ≈ <span className="font-semibold text-gray-600">Voted × positions</span>; older builds could stop at the first{" "}
-          <span className="font-semibold text-gray-600">1000</span> vote rows, which made each race look ~167 deep while turnout was higher.
+          <span className="font-bold text-gray-500">Turnout definition:</span> Ballots counted = minimum anonymous selections per configured race (
+          <span className="font-mono text-[10px]">election_votes</span>), same as the public site after DB migration. Selections (all races) is that ballot
+          count × races when every race matches.
         </p>
 
         {/* Turnout bar */}
@@ -2605,6 +2645,15 @@ function ResultsTab({ electionId }: { electionId: string }) {
                 );
               })}
             </div>
+            {selectedPosition && displayCandidates.some((c) => c.id !== "placeholder") && (
+              <div className="grid grid-cols-[1fr_auto_auto] gap-3 px-4 py-3 bg-slate-50 border-t border-gray-200 items-center">
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">Total (sum of rows)</span>
+                <span className="text-sm font-black text-slate-900 text-right tabular-nums">{listVoteSum}</span>
+                <span className="text-[10px] font-bold text-slate-500 text-right">
+                  {listVoteSum === selectedPosition.total_votes ? "Matches race total" : `Race ${selectedPosition.total_votes}`}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
