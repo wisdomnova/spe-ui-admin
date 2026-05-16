@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
+import {
+  fetchAllElectionAssignmentsTurnout,
+  fetchAllElectionVotes,
+} from "@/lib/postgrest-election-pagination";
+import { supabase } from "@/lib/supabase";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -14,6 +18,9 @@ interface RouteContext {
  * - Overall turnout stats
  * - Timeline of voting activity (hourly buckets)
  *
+ * Vote rows and assignments are fetched with pagination (PostgREST default row cap ~1000).
+ * PDF export and UI use this payload only — totals match the full ballot set.
+ *
  * NO voter identity is ever exposed.
  */
 export async function GET(req: NextRequest, ctx: RouteContext) {
@@ -22,24 +29,26 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     const block = await requireSessionAndElectionUnlock(req, id);
     if (block) return block;
 
-    // Fetch election + positions + candidates + votes + turnout in parallel
-    const [electionRes, positionsRes, candidatesRes, votesRes, assignmentsRes] = await Promise.all([
+    const [electionRes, positionsRes, candidatesRes, assignmentsBundle, votesBundle] = await Promise.all([
       supabase.from("elections").select("id, title, status, election_date, start_time, end_time").eq("id", id).single(),
       supabase.from("election_positions").select("id, title, sort_order").eq("election_id", id).order("sort_order"),
       supabase.from("election_candidates").select("id, position_id, name, image_url").eq("election_id", id),
-      supabase.from("election_votes").select("id, position_id, candidate_id, created_at").eq("election_id", id),
-      supabase
-        .from("election_voter_assignments")
-        .select("id, has_voted")
-        .eq("election_id", id),
+      fetchAllElectionAssignmentsTurnout(id),
+      fetchAllElectionVotes(id),
     ]);
 
     if (electionRes.error) return NextResponse.json({ error: electionRes.error.message }, { status: 404 });
+    if (votesBundle.error) {
+      return NextResponse.json({ error: votesBundle.error.message }, { status: 500 });
+    }
+    if (assignmentsBundle.error) {
+      return NextResponse.json({ error: assignmentsBundle.error.message }, { status: 500 });
+    }
 
     const positions = positionsRes.data || [];
     const candidates = candidatesRes.data || [];
-    const votes = votesRes.data || [];
-    const assignments = assignmentsRes.data || [];
+    const votes = votesBundle.rows;
+    const assignments = assignmentsBundle.rows;
 
     const totalVoters = assignments.length;
     const votedCount = assignments.filter((a: { has_voted: boolean }) => a.has_voted).length;
@@ -78,7 +87,6 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       candidateResults.sort((a, b) => b.votes - a.votes);
 
       const leader = candidateResults.length > 0 && candidateResults[0].votes > 0 ? candidateResults[0] : null;
-      // Check if there's a tie for the lead
       const isTied = leader && candidateResults.filter((c) => c.votes === leader.votes).length > 1;
 
       return {
@@ -92,10 +100,9 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       };
     });
 
-    // Build voting timeline (hourly buckets)
     const timeline: Record<string, number> = {};
     for (const vote of votes) {
-      const hour = new Date(vote.created_at).toISOString().slice(0, 13) + ":00"; // "2026-04-12T14:00"
+      const hour = new Date(vote.created_at).toISOString().slice(0, 13) + ":00";
       timeline[hour] = (timeline[hour] || 0) + 1;
     }
     const timelineArray = Object.entries(timeline)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchAllElectionAssignmentsWithVotersFlat } from "@/lib/postgrest-election-pagination";
 import { supabase } from "@/lib/supabase";
 import { requireSessionAndElectionUnlock } from "@/lib/election-api-guard";
 
@@ -16,30 +17,9 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     const block = await requireSessionAndElectionUnlock(req, id);
     if (block) return block;
 
-    const { data, error } = await supabase
-      .from("election_voter_assignments")
-      .select("id, election_id, voter_id, has_voted, created_at, voters(id, name, matric_number, email, level, department)")
-      .eq("election_id", id)
-      .order("created_at", { ascending: false });
+    const { voters, error } = await fetchAllElectionAssignmentsWithVotersFlat(id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    // Flatten the response for easier consumption
-    const voters = (data || []).map((row: Record<string, unknown>) => {
-      const voter = row.voters as Record<string, unknown> | null;
-      return {
-        assignment_id: row.id,
-        election_id: row.election_id,
-        voter_id: row.voter_id,
-        has_voted: row.has_voted,
-        assigned_at: row.created_at,
-        name: voter?.name || "",
-        matric_number: voter?.matric_number || "",
-        email: voter?.email || "",
-        level: voter?.level || null,
-        department: voter?.department || null,
-      };
-    });
 
     return NextResponse.json(voters);
   } catch {

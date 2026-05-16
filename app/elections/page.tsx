@@ -2174,7 +2174,9 @@ function ResultsTab({ electionId }: { electionId: string }) {
       ["Election Title:", String(data.election.title || "N/A")],
       ["Election Date:", prettyDate],
       ["Total Registered Voters:", String(data.turnout.total_voters ?? 0)],
-      ["Voter Turnout:", String(data.turnout.voted ?? 0)],
+      ["Voter Turnout (submitted ballots):", String(data.turnout.voted ?? 0)],
+      ["Eligible Not Yet Submitted:", String(data.turnout.not_voted ?? 0)],
+      ["Selections Recorded (all races):", String(data.total_votes ?? 0)],
       ["Voting Period:", timeWindow],
     ];
 
@@ -2359,9 +2361,19 @@ function ResultsTab({ electionId }: { electionId: string }) {
           </div>
           <div>
             <p className="text-3xl font-black text-blue-600">{total_votes}</p>
-            <p className="text-xs font-bold text-gray-400 mt-1">Total Ballots Cast</p>
+            <p className="text-xs font-bold text-gray-400 mt-1">Selections (all races)</p>
           </div>
         </div>
+        <p className="mt-4 text-[11px] text-gray-400 leading-relaxed max-w-3xl">
+          <span className="font-bold text-gray-500">How to read this:</span>{" "}
+          <span className="font-semibold text-gray-600">Voted</span> is the number of assigned voters marked as having submitted a ballot.{" "}
+          Each position below counts only rows in that race (one row per voter per race). Those numbers can be lower than{" "}
+          <span className="font-semibold text-gray-600">Voted</span> if a race was added after some people had already voted, or if legacy data
+          is missing rows for a race. <span className="font-semibold text-gray-600">Selections (all races)</span> is the sum of every vote row
+          across all races (not “ballots × positions” as a separate meaning — it is literally row count). When everyone completes every race,
+          expect selections ≈ <span className="font-semibold text-gray-600">Voted × positions</span>; older builds could stop at the first{" "}
+          <span className="font-semibold text-gray-600">1000</span> vote rows, which made each race look ~167 deep while turnout was higher.
+        </p>
 
         {/* Turnout bar */}
         <div className="mt-6">
@@ -2439,7 +2451,7 @@ function ResultsTab({ electionId }: { electionId: string }) {
           </div>
         </div>
 
-        {selectedPosition && selectedPosition.candidates.length > 0 && (
+        {resultsView === "list" && selectedPosition && selectedPosition.candidates.length > 0 && (
           <div className="mb-6 flex flex-wrap gap-2">
             {selectedPosition.candidates.map((cand) => (
               <div
@@ -2518,36 +2530,9 @@ function ResultsTab({ electionId }: { electionId: string }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex justify-around gap-2 pl-5 pr-2 pt-3 border-t border-gray-50 mt-1">
-              {displayCandidates.map((cand, idx) => {
-                const isPlaceholder = cand.id === "placeholder";
-                const isNoneOfAbove = cand.id === "none_of_above";
-                return (
-                  <div key={`avatar-${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center gap-1 min-w-0">
-                    {isPlaceholder ? (
-                      <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black">-</div>
-                    ) : isNoneOfAbove ? (
-                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black">
-                        Ø
-                      </div>
-                    ) : cand.image_url ? (
-                      <img src={cand.image_url} alt={cand.name} className="w-6 h-6 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black">
-                        {cand.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <span
-                      className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
-                        isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
-                      }`}
-                    >
-                      {cand.name}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <p className="pl-1 pt-3 text-[10px] text-gray-400 font-medium border-t border-gray-50 mt-1">
+              Hover bars for full names. Switch to List for a compact table without repeating labels.
+            </p>
           </div>
         ) : (
           <div className="border border-gray-100 rounded-2xl overflow-hidden">

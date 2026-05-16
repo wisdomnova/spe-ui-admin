@@ -1,4 +1,5 @@
-@import "tailwindcss";
+/* Relative path: Turbopack resolves bare "tailwindcss" from $HOME when a parent lockfile exists */
+@import "../node_modules/tailwindcss/index.css";
 
 :root {
   --background: #ffffff;
