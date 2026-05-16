@@ -2530,8 +2530,44 @@ function ResultsTab({ electionId }: { electionId: string }) {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="pl-1 pt-3 text-[10px] text-gray-400 font-medium border-t border-gray-50 mt-1">
-              Hover bars for full names. Switch to List for a compact table without repeating labels.
+            <div className="flex justify-around gap-2 pl-5 pr-2 pt-3 border-t border-gray-50 mt-1">
+              {displayCandidates.map((cand, idx) => {
+                const isPlaceholder = cand.id === "placeholder";
+                const isNoneOfAbove = cand.id === "none_of_above";
+                return (
+                  <div key={`chart-legend-${cand.id}-${idx}`} className="flex-1 max-w-28 flex flex-col items-center gap-1 min-w-0">
+                    {isPlaceholder ? (
+                      <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[10px] font-black shrink-0">
+                        -
+                      </div>
+                    ) : isNoneOfAbove ? (
+                      <div className="w-9 h-9 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                        Ø
+                      </div>
+                    ) : cand.image_url ? (
+                      <img
+                        src={cand.image_url}
+                        alt={cand.name}
+                        className="w-9 h-9 rounded-full object-cover shrink-0 ring-2 ring-gray-100"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-black shrink-0">
+                        {cand.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span
+                      className={`text-[10px] font-bold text-center leading-tight line-clamp-3 break-words w-full ${
+                        isPlaceholder ? "text-gray-400" : isNoneOfAbove ? "text-amber-700" : "text-gray-600"
+                      }`}
+                    >
+                      {isPlaceholder ? "—" : cand.name}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="pl-1 pt-2 text-[10px] text-gray-400 font-medium">
+              Hover a bar for vote count; List view shows the full table.
             </p>
           </div>
         ) : (
