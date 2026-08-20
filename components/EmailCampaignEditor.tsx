@@ -1024,8 +1024,152 @@ function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClos
 }
 
 /* ═══════════════════════════════════════════════════════
-   EMAIL TEMPLATE WRAPPER
+   EMAIL TEMPLATE WRAPPER & INLINE STYLING
    ═══════════════════════════════════════════════════════ */
+
+/**
+ * Inlines default styling parameters onto elements, ensuring we don't
+ * overwrite custom styles (like colors) chosen in the rich text editor.
+ */
+function inlineStyles(html: string): string {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return html;
+  }
+
+  const div = document.createElement("div");
+  div.innerHTML = html;
+
+  const applyDefaultStyles = (el: HTMLElement, defaults: Record<string, string>) => {
+    const existingStyle = el.getAttribute("style") || "";
+    const styleMap: Record<string, string> = {};
+
+    existingStyle.split(";").forEach((pair) => {
+      const trimPair = pair.trim();
+      if (!trimPair) return;
+      const colonIndex = trimPair.indexOf(":");
+      if (colonIndex === -1) return;
+      const key = trimPair.substring(0, colonIndex).trim().toLowerCase();
+      const val = trimPair.substring(colonIndex + 1).trim();
+      styleMap[key] = val;
+    });
+
+    Object.entries(defaults).forEach(([key, val]) => {
+      if (!(key.toLowerCase() in styleMap)) {
+        styleMap[key.toLowerCase()] = val;
+      }
+    });
+
+    const newStyle = Object.entries(styleMap)
+      .map(([key, val]) => `${key}: ${val}`)
+      .join("; ");
+    el.setAttribute("style", newStyle);
+  };
+
+  div.querySelectorAll("h1").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "font-size": "24px",
+      "font-weight": "900",
+      "color": "#111827",
+      "margin-top": "0px",
+      "margin-bottom": "12px",
+      "line-height": "1.25",
+      "font-family": "Arial, Helvetica, sans-serif"
+    });
+  });
+
+  div.querySelectorAll("h2").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "font-size": "20px",
+      "font-weight": "700",
+      "color": "#111827",
+      "margin-top": "0px",
+      "margin-bottom": "8px",
+      "line-height": "1.3",
+      "font-family": "Arial, Helvetica, sans-serif"
+    });
+  });
+
+  div.querySelectorAll("h3").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "font-size": "18px",
+      "font-weight": "700",
+      "color": "#111827",
+      "margin-top": "0px",
+      "margin-bottom": "8px",
+      "line-height": "1.35",
+      "font-family": "Arial, Helvetica, sans-serif"
+    });
+  });
+
+  div.querySelectorAll("p").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "font-size": "14px",
+      "color": "#374151",
+      "margin-top": "0px",
+      "margin-bottom": "12px",
+      "line-height": "1.6",
+      "font-family": "Arial, Helvetica, sans-serif"
+    });
+  });
+
+  div.querySelectorAll("a").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "color": "#2563EB",
+      "text-decoration": "underline"
+    });
+  });
+
+  div.querySelectorAll("ul").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "margin-top": "0px",
+      "margin-bottom": "12px",
+      "padding-left": "24px",
+      "list-style-type": "disc"
+    });
+  });
+
+  div.querySelectorAll("ol").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "margin-top": "0px",
+      "margin-bottom": "12px",
+      "padding-left": "24px",
+      "list-style-type": "decimal"
+    });
+  });
+
+  div.querySelectorAll("li").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "margin-bottom": "4px",
+      "font-size": "14px",
+      "color": "#374151",
+      "line-height": "1.6",
+      "font-family": "Arial, Helvetica, sans-serif"
+    });
+  });
+
+  div.querySelectorAll("img").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "max-width": "100%",
+      "height": "auto",
+      "border-radius": "8px",
+      "margin-top": "8px",
+      "margin-bottom": "8px",
+      "display": "block"
+    });
+  });
+
+  div.querySelectorAll("hr").forEach((el) => {
+    applyDefaultStyles(el as HTMLElement, {
+      "border": "0",
+      "border-top": "1px solid #E5E7EB",
+      "margin-top": "16px",
+      "margin-bottom": "16px"
+    });
+  });
+
+  return div.innerHTML;
+}
+
 function wrapInEmailTemplate(body: string, subject: string, includeUnsubscribe: boolean): string {
   const unsubscribeRow = includeUnsubscribe
     ? `<p style="margin:0; font-size:11px; color:#D1D5DB;">
@@ -1033,18 +1177,38 @@ function wrapInEmailTemplate(body: string, subject: string, includeUnsubscribe: 
               </p>`
     : "";
 
+  const inlinedBody = inlineStyles(body);
+
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${subject}</title>
+  <style>
+    /* Prevent Windows/iOS font scaling or boosting */
+    body, table, td, p, a, li, blockquote {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    /* Prevent Gmail mobile app from shrinking text size */
+    div[style*="margin: 16px 0"] {
+      margin: 0 !important;
+    }
+    /* Responsive layout overrides */
+    @media only screen and (max-width: 600px) {
+      .email-container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    }
+  </style>
 </head>
 <body style="margin:0; padding:0; background:#ffffff; font-family:Arial,Helvetica,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff; padding:32px 16px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;">
+        <table class="email-container" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; width:100%; max-width:600px;">
           <tr>
             <td style="padding:0 0 24px;">
               <p style="margin:0; font-size:11px; color:#9CA3AF; font-weight:600;">SPE-UI</p>
@@ -1052,7 +1216,7 @@ function wrapInEmailTemplate(body: string, subject: string, includeUnsubscribe: 
           </tr>
           <tr>
             <td style="padding:0 0 32px; font-size:14px; color:#374151; line-height:1.6;">
-              ${body}
+              ${inlinedBody}
             </td>
           </tr>
           <tr>
