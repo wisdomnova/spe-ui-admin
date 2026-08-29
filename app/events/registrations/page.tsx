@@ -41,12 +41,14 @@ function RegistrationsContent() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<string>(initialEventFilter);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchRegistrations();
   }, []);
 
   const fetchRegistrations = async () => {
+    setIsRefreshing(true);
     try {
       const res = await fetch("/api/events/registrations");
       if (res.ok) {
@@ -56,6 +58,9 @@ function RegistrationsContent() {
     } catch {
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 600);
     }
   };
 
@@ -164,11 +169,11 @@ function RegistrationsContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-12 w-full overflow-x-hidden">
+    <div className="p-4 sm:p-6 lg:p-12">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-7xl mx-auto w-full overflow-hidden"
+        className="max-w-7xl mx-auto"
       >
         {/* Navigation & Header */}
         <div className="mb-8">
@@ -193,9 +198,15 @@ function RegistrationsContent() {
             <div className="flex gap-4 self-start md:self-auto">
               <button
                 onClick={fetchRegistrations}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3"
+                disabled={isRefreshing}
+                className="group bg-gray-100 hover:bg-gray-200 active:scale-[0.98] text-gray-800 px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3 disabled:opacity-75"
               >
-                <RotateCw size={16} />
+                <RotateCw
+                  size={16}
+                  className={`transition-transform duration-500 ${
+                    isRefreshing ? "animate-spin" : "group-hover:rotate-180"
+                  }`}
+                />
                 Refresh
               </button>
               <button
@@ -310,9 +321,9 @@ function RegistrationsContent() {
         ) : (
           <div className="bg-white rounded-[3rem] border border-gray-50 overflow-hidden w-full max-w-full">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] text-left border-collapse">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] whitespace-nowrap">
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     <th className="px-8 py-7">Attendee</th>
                     <th className="px-8 py-7">Department</th>
                     <th className="px-8 py-7">Event</th>
@@ -330,7 +341,7 @@ function RegistrationsContent() {
                         className="group hover:bg-gray-50/50 transition-colors"
                       >
                         {/* Name & Matric Number */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           <div className="space-y-1">
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
@@ -343,7 +354,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Department */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                             <Building2 size={14} className="text-gray-300" />
                             {reg.department}
@@ -351,14 +362,14 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Event Name */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           <span className="inline-block bg-gray-100 text-gray-900 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider">
                             {reg.event_name}
                           </span>
                         </td>
 
                         {/* Membership Status Badge */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           {reg.is_spe_member ? (
                             reg.is_membership_active ? (
                               <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-green-700 border-green-200 bg-green-50">
@@ -380,7 +391,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* WhatsApp Number or N/A */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           {reg.whatsapp_number ? (
                             <div className="flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50/60 px-3 py-1.5 rounded-xl border border-green-100 w-fit">
                               <Phone size={13} />
@@ -394,7 +405,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Date & Time */}
-                        <td className="px-8 py-6 whitespace-nowrap">
+                        <td className="px-8 py-6">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                               <Calendar size={13} className="text-blue-500" />
