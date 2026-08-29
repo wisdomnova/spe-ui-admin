@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, User, Star, Trash2, Edit2, Share2, Search, Filter, X, Check, Loader2 } from "lucide-react";
 import MemberPickerModal from "@/components/cms/MemberPickerModal";
+import MediaPickerModal from "@/components/cms/MediaPickerModal";
 
 interface Spotlight {
   id: string;
@@ -27,6 +28,15 @@ export default function SpotlightPage() {
   const [showMemberPicker, setShowMemberPicker] = useState(false);
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [formTags, setFormTags] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Custom Spotlight form states
+  const [spotlightType, setSpotlightType] = useState<"team" | "custom">("team");
+  const [customName, setCustomName] = useState("");
+  const [customRole, setCustomRole] = useState("");
+  const [customDept, setCustomDept] = useState("");
+  const [customImageUrl, setCustomImageUrl] = useState("");
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
 
   useEffect(() => {
     fetchSpotlights();
@@ -45,23 +55,41 @@ export default function SpotlightPage() {
   };
 
   const handleCreate = async () => {
-    if (!selectedMember) return;
+    if (spotlightType === "team" && !selectedMember) return;
+    if (spotlightType === "custom" && (!customName.trim() || !customRole.trim() || !customDept.trim())) return;
+
     setSubmitting(true);
     try {
+      const payload = spotlightType === "team"
+        ? {
+            team_member_id: selectedMember.id,
+            tags: formTags.split(",").map((t: string) => t.trim()).filter((t: string) => t),
+          }
+        : {
+            name: customName.trim(),
+            role: customRole.trim(),
+            department: customDept.trim(),
+            image_url: customImageUrl.trim() || null,
+            tags: formTags.split(",").map((t: string) => t.trim()).filter((t: string) => t),
+          };
+
       const res = await fetch("/api/spotlight", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          team_member_id: selectedMember.id,
-          tags: formTags.split(",").map((t: string) => t.trim()).filter((t: string) => t),
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const newSpotlight = await res.json();
         setSpotlights([newSpotlight, ...spotlights]);
         setShowCreateModal(false);
+        // Reset states
         setSelectedMember(null);
+        setCustomName("");
+        setCustomRole("");
+        setCustomDept("");
+        setCustomImageUrl("");
         setFormTags("");
+        setSpotlightType("team");
       }
     } catch {} finally { setSubmitting(false); }
   };
@@ -105,7 +133,13 @@ export default function SpotlightPage() {
         <div className="flex flex-col md:flex-row gap-4 mb-10">
           <div className="flex-1 bg-white border border-gray-100 rounded-2xl px-6 py-4 flex items-center gap-4 text-gray-400 focus-within:border-blue-200 transition-colors">
             <Search size={18} />
-            <input type="text" placeholder="Search members..." className="bg-transparent border-0 outline-none text-sm font-bold text-gray-900 w-full placeholder:text-gray-200" />
+            <input 
+              type="text" 
+              placeholder="Search members..." 
+              className="bg-transparent border-0 outline-none text-sm font-bold text-gray-900 w-full placeholder:text-gray-200" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </div>
 
@@ -119,7 +153,18 @@ export default function SpotlightPage() {
           </div>
         ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {spotlights.map((spotlight, i) => (
+          {spotlights
+            .filter((spotlight) => {
+              if (!searchQuery) return true;
+              const query = searchQuery.toLowerCase();
+              return (
+                (spotlight.team_member?.name || "").toLowerCase().includes(query) ||
+                (spotlight.team_member?.role || "").toLowerCase().includes(query) ||
+                (spotlight.team_member?.department || "").toLowerCase().includes(query) ||
+                (spotlight.tags || []).some((t) => t.toLowerCase().includes(query))
+              );
+            })
+            .map((spotlight, i) => (
             <motion.div 
               key={spotlight.id}
               initial={{ opacity: 0, scale: 0.95 }}
@@ -196,36 +241,124 @@ export default function SpotlightPage() {
               </div>
 
               <div className="p-8 space-y-6">
-                <div className="space-y-4">
-                  <button 
-                    onClick={() => setShowMemberPicker(true)}
-                    className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-100 flex items-center gap-4 hover:bg-blue-50/50 hover:border-blue-100 transition-all outline-none"
+                {/* Spotlight Type Selector */}
+                <div className="flex bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setSpotlightType("team")}
+                    className={`flex-1 py-3 text-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      spotlightType === "team"
+                        ? "bg-white text-gray-950 shadow-sm"
+                        : "text-gray-400 hover:text-gray-950"
+                    }`}
                   >
-                    {selectedMember?.image_url ? (
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                        <img src={selectedMember.image_url} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
-                        <User size={20} />
-                      </div>
-                    )}
-                    <div className="text-left">
-                      <p className="text-xs font-black text-gray-900 uppercase tracking-widest leading-none mb-1">
-                        {selectedMember?.name || "Pick Member"}
-                      </p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
-                        {selectedMember?.role || "Click to browse team"}
-                      </p>
-                    </div>
+                    Team Member
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setSpotlightType("custom")}
+                    className={`flex-1 py-3 text-center rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                      spotlightType === "custom"
+                        ? "bg-white text-gray-950 shadow-sm"
+                        : "text-gray-400 hover:text-gray-950"
+                    }`}
+                  >
+                    Custom Spotlight
+                  </button>
+                </div>
 
+                <div className="space-y-4">
+                  {spotlightType === "team" ? (
+                    <button 
+                      onClick={() => setShowMemberPicker(true)}
+                      className="w-full p-4 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-100 flex items-center gap-4 hover:bg-blue-50/50 hover:border-blue-100 transition-all outline-none"
+                    >
+                      {selectedMember?.image_url ? (
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 shrink-0">
+                          <img src={selectedMember.image_url} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 shrink-0">
+                          <User size={20} />
+                        </div>
+                      )}
+                      <div className="text-left">
+                        <p className="text-xs font-black text-gray-900 uppercase tracking-widest leading-none mb-1">
+                          {selectedMember?.name || "Pick Member"}
+                        </p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
+                          {selectedMember?.role || "Click to browse team"}
+                        </p>
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Name input */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Full Name</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Dr. Jane Smith" 
+                          className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300 focus:ring-2 focus:ring-blue-500/10"
+                          value={customName}
+                          onChange={(e) => setCustomName(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Role input */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Role / Headline</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Keynote Speaker / CTO" 
+                          className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300 focus:ring-2 focus:ring-blue-500/10"
+                          value={customRole}
+                          onChange={(e) => setCustomRole(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Department / Company input */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Department / Organization</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Chevron Nigeria" 
+                          className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300 focus:ring-2 focus:ring-blue-500/10"
+                          value={customDept}
+                          onChange={(e) => setCustomDept(e.target.value)}
+                        />
+                      </div>
+
+                      {/* Image URL with Media Picker popup trigger */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Image URL</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            placeholder="e.g. https://... or select below" 
+                            className="flex-1 bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300 focus:ring-2 focus:ring-blue-500/10"
+                            value={customImageUrl}
+                            onChange={(e) => setCustomImageUrl(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowMediaPicker(true)}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all outline-none"
+                          >
+                            Browse Media
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tags */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Tags (Comma separated)</label>
                     <input 
                       type="text" 
-                      placeholder="e.g. Design, Frontend, UI" 
-                      className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300"
+                      placeholder="e.g. Alumnus, Chevron, Keynote" 
+                      className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-gray-900 outline-none placeholder-gray-300 focus:ring-2 focus:ring-blue-500/10"
                       value={formTags}
                       onChange={(e) => setFormTags(e.target.value)}
                     />
@@ -234,7 +367,7 @@ export default function SpotlightPage() {
 
                 <button 
                   onClick={handleCreate}
-                  disabled={submitting || !selectedMember}
+                  disabled={submitting || (spotlightType === "team" ? !selectedMember : (!customName.trim() || !customRole.trim() || !customDept.trim()))}
                   className="w-full bg-gray-900 text-white rounded-2xl py-4 font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl outline-none flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? 'Creating...' : 'Confirm Spotlight'}
@@ -250,6 +383,15 @@ export default function SpotlightPage() {
         isOpen={showMemberPicker}
         onClose={() => setShowMemberPicker(false)}
         onSelect={handleMemberSelect}
+      />
+
+      <MediaPickerModal 
+        isOpen={showMediaPicker}
+        onClose={() => setShowMediaPicker(false)}
+        onSelect={(file) => {
+          setCustomImageUrl(file.url);
+          setShowMediaPicker(false);
+        }}
       />
     </div>
   );

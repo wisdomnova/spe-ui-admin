@@ -16,7 +16,25 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data);
+
+    // Map custom spotlights to fit the standard spotlight schema structure
+    const formatted = data?.map((s) => {
+      if (!s.team_member_id) {
+        return {
+          ...s,
+          team_member: {
+            id: s.id, // simulated id
+            name: s.name,
+            role: s.role,
+            department: s.department,
+            image_url: s.image_url,
+          },
+        };
+      }
+      return s;
+    });
+
+    return NextResponse.json(formatted || []);
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -35,13 +53,32 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("spotlights")
       .insert({
-        team_member_id: body.team_member_id,
+        team_member_id: body.team_member_id || null,
+        name: body.name || null,
+        role: body.role || null,
+        department: body.department || null,
+        image_url: body.image_url || null,
         tags: body.tags || [],
       })
       .select("*, team_member:team_members(*)")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    if (!data.team_member_id) {
+      const formatted = {
+        ...data,
+        team_member: {
+          id: data.id,
+          name: data.name,
+          role: data.role,
+          department: data.department,
+          image_url: data.image_url,
+        },
+      };
+      return NextResponse.json(formatted, { status: 201 });
+    }
+
     return NextResponse.json(data, { status: 201 });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
