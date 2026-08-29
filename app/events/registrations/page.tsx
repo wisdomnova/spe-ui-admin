@@ -302,7 +302,7 @@ function RegistrationsContent() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] whitespace-nowrap">
                     <th className="px-8 py-7">Attendee</th>
                     <th className="px-8 py-7">Department</th>
                     <th className="px-8 py-7">Event</th>
@@ -320,7 +320,7 @@ function RegistrationsContent() {
                         className="group hover:bg-gray-50/50 transition-colors"
                       >
                         {/* Name & Email */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           <div className="space-y-1">
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
@@ -333,7 +333,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Department */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                             <Building2 size={14} className="text-gray-300" />
                             {reg.department}
@@ -341,14 +341,14 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Event Name */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           <span className="inline-block bg-gray-100 text-gray-900 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider">
                             {reg.event_name}
                           </span>
                         </td>
 
                         {/* Membership Status Badge */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           {reg.is_spe_member ? (
                             reg.is_membership_active ? (
                               <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-green-700 border-green-200 bg-green-50">
@@ -370,7 +370,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* WhatsApp Number or N/A */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           {reg.whatsapp_number ? (
                             <div className="flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50/60 px-3 py-1.5 rounded-xl border border-green-100 w-fit">
                               <Phone size={13} />
@@ -384,7 +384,7 @@ function RegistrationsContent() {
                         </td>
 
                         {/* Date & Time */}
-                        <td className="px-8 py-6">
+                        <td className="px-8 py-6 whitespace-nowrap">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
                               <Calendar size={13} className="text-blue-500" />
