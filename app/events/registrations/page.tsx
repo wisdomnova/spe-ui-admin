@@ -25,7 +25,7 @@ interface Registration {
   id: string;
   event_name: string;
   name: string;
-  matric_number: string;
+  email: string;
   department: string;
   is_spe_member: boolean;
   is_membership_active: boolean | null;
@@ -78,7 +78,7 @@ function RegistrationsContent() {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         reg.name.toLowerCase().includes(query) ||
-        reg.matric_number.toLowerCase().includes(query) ||
+        reg.email.toLowerCase().includes(query) ||
         reg.department.toLowerCase().includes(query) ||
         (reg.whatsapp_number || "").toLowerCase().includes(query) ||
         reg.event_name.toLowerCase().includes(query);
@@ -115,7 +115,7 @@ function RegistrationsContent() {
 
     const headers = [
       "Name",
-      "Matric Number",
+      "Email",
       "Department",
       "Event",
       "SPE Member",
@@ -129,7 +129,7 @@ function RegistrationsContent() {
       const { date, time } = formatDate(r.created_at);
       return [
         `"${r.name.replace(/"/g, '""')}"`,
-        `"${r.matric_number.replace(/"/g, '""')}"`,
+        `"${r.email.replace(/"/g, '""')}"`,
         `"${r.department.replace(/"/g, '""')}"`,
         `"${r.event_name.replace(/"/g, '""')}"`,
         r.is_spe_member ? "Yes" : "No",
@@ -275,7 +275,7 @@ function RegistrationsContent() {
             />
             <input
               type="text"
-              placeholder="Search attendees by name, matric number, department, or WhatsApp..."
+              placeholder="Search attendees by name, email, department, or WhatsApp..."
               className="w-full bg-gray-50 border-none rounded-3xl pl-14 pr-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/10 placeholder-gray-300 outline-none"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -339,15 +339,15 @@ function RegistrationsContent() {
                         key={reg.id}
                         className="group hover:bg-gray-50/50 transition-colors"
                       >
-                        {/* Name & Matric Number */}
+                        {/* Name & Email */}
                         <td className="px-8 py-6">
                           <div className="space-y-1">
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400">
-                              <span className="text-blue-500 font-black">#</span>
-                              {reg.matric_number}
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
+                              <Mail size={13} className="text-blue-500" />
+                              {reg.email}
                             </div>
                           </div>
                         </td>
