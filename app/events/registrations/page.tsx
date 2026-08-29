@@ -326,7 +326,6 @@ function RegistrationsContent() {
                   <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
                     <th className="px-8 py-7">Attendee</th>
                     <th className="px-8 py-7">Department</th>
-                    <th className="px-8 py-7">Event</th>
                     <th className="px-8 py-7">Membership Status</th>
                     <th className="px-8 py-7">WhatsApp / Contact</th>
                     <th className="px-8 py-7">Registered Date & Time</th>
@@ -361,25 +360,18 @@ function RegistrationsContent() {
                           </div>
                         </td>
 
-                        {/* Event Name */}
-                        <td className="px-8 py-6">
-                          <span className="inline-block bg-gray-100 text-gray-900 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider">
-                            {reg.event_name}
-                          </span>
-                        </td>
-
                         {/* Membership Status Badge */}
                         <td className="px-8 py-6">
                           {reg.is_spe_member ? (
                             reg.is_membership_active ? (
                               <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-green-700 border-green-200 bg-green-50">
                                 <CheckCircle2 size={13} />
-                                Active Member
+                                Active
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-amber-700 border-amber-200 bg-amber-50">
                                 <XCircle size={13} />
-                                Inactive Member
+                                Inactive
                               </span>
                             )
                           ) : (
