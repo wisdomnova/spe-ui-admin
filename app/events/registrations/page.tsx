@@ -192,7 +192,7 @@ function RegistrationsContent() {
             <button
               onClick={exportToCSV}
               disabled={filteredRegistrations.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 transition-all flex items-center gap-3 self-start md:self-auto"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3 self-start md:self-auto"
             >
               <Download size={16} />
               Export CSV
@@ -202,7 +202,7 @@ function RegistrationsContent() {
 
         {/* Overview Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5">
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
               <Users size={24} />
             </div>
@@ -216,7 +216,7 @@ function RegistrationsContent() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5">
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center font-black">
               <CheckCircle2 size={24} />
             </div>
@@ -230,7 +230,7 @@ function RegistrationsContent() {
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-5">
+          <div className="bg-white p-6 rounded-[2rem] border border-gray-100 flex items-center gap-5">
             <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
               <Clock3 size={24} />
             </div>
@@ -246,7 +246,7 @@ function RegistrationsContent() {
         </div>
 
         {/* Filter Controls & Search */}
-        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm mb-10 flex flex-col md:flex-row gap-6 items-center">
+        <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 mb-10 flex flex-col md:flex-row gap-6 items-center">
           <div className="flex-1 relative w-full">
             <Search
               className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300"
@@ -272,7 +272,7 @@ function RegistrationsContent() {
                 onClick={() => setSelectedEvent(evt)}
                 className={`px-5 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
                   selectedEvent.toLowerCase() === evt.toLowerCase()
-                    ? "bg-gray-950 text-white shadow-lg"
+                    ? "bg-gray-950 text-white"
                     : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                 }`}
               >
@@ -298,7 +298,7 @@ function RegistrationsContent() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-[3rem] border border-gray-50 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-[3rem] border border-gray-50 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
