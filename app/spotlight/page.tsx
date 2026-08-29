@@ -170,45 +170,51 @@ export default function SpotlightPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-8 rounded-[3rem] border border-gray-50 shadow-sm hover:shadow-2xl hover:shadow-blue-200/20 transition-all group flex flex-col items-center text-center relative overflow-hidden"
+              className="group relative flex flex-col"
             >
-              {/* Profile Image */}
-              <div className="w-32 h-32 rounded-[3.5rem] bg-blue-50 relative mb-6 overflow-hidden border-4 border-white shadow-xl shadow-blue-100/50">
+              {/* Image Container */}
+              <div className="relative aspect-[4/5] w-full overflow-hidden rounded-[2.5rem] bg-gray-100 shadow-sm transition-all duration-500 hover:shadow-2xl">
                  {spotlight.team_member?.image_url ? (
-                   <img src={spotlight.team_member.image_url} alt={spotlight.team_member.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                   <img src={spotlight.team_member.image_url} alt={spotlight.team_member.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                  ) : (
-                   <div className="w-full h-full flex items-center justify-center text-gray-300"><User size={48} /></div>
+                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50 text-blue-300">
+                     <span className="text-5xl font-black">{spotlight.team_member?.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                   </div>
                  )}
+
+                 {/* Star badge */}
+                 <div className="absolute top-6 right-6 z-10 rounded-2xl bg-white/85 p-3 backdrop-blur-md text-yellow-500 shadow-md">
+                   <Star size={20} fill="currentColor" />
+                 </div>
               </div>
 
-              <div className="space-y-1 mb-6">
-                <h3 className="text-2xl font-black text-gray-900 leading-none">{spotlight.team_member?.name || "Unknown"}</h3>
-                <p className="text-xs font-bold text-blue-600 uppercase tracking-widest">{spotlight.team_member?.role || ""}</p>
-                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{spotlight.team_member?.department || ""}</p>
-              </div>
+              {/* Info Container */}
+              <div className="mt-8 flex flex-col items-center text-center">
+                <h3 className="text-2xl font-black text-gray-950 leading-none">{spotlight.team_member?.name || "Unknown"}</h3>
+                <p className="mt-2 text-xs font-black text-blue-600 uppercase tracking-widest">{spotlight.team_member?.role || ""}</p>
+                <p className="mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest">{spotlight.team_member?.department || ""}</p>
 
-              <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
-                {(spotlight.tags || []).map(tag => (
-                  <span key={tag} className="text-[9px] font-black text-gray-400 border border-gray-100 px-3 py-1 rounded-full uppercase tracking-widest">{tag}</span>
-                ))}
-              </div>
+                {/* Tags */}
+                {spotlight.tags && spotlight.tags.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                    {spotlight.tags.map(tag => (
+                      <span key={tag} className="text-[9px] font-black text-blue-500 bg-blue-50/50 border border-blue-100/50 px-3 py-1 rounded-full uppercase tracking-widest">{tag}</span>
+                    ))}
+                  </div>
+                )}
 
-              {/* Action Bar */}
-              <div className="flex items-center gap-2 pt-6 border-t border-gray-50 w-full justify-center">
-                <button className="p-3 text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-2xl outline-none">
-                  <Edit2 size={16} />
-                </button>
-                <button className="p-3 text-gray-300 hover:text-green-600 hover:bg-green-50 transition-all rounded-2xl outline-none">
-                   <Share2 size={16} />
-                </button>
-                <button onClick={() => handleDelete(spotlight.id)} className="p-3 text-gray-300 hover:text-red-600 hover:bg-red-50 transition-all rounded-2xl outline-none">
-                   <Trash2 size={16} />
-                </button>
-              </div>
-
-              {/* Spotlight Badge */}
-              <div className="absolute top-6 right-6 text-blue-100 group-hover:text-blue-600 transition-colors">
-                 <Star size={24} fill="currentColor" />
+                {/* Action Bar */}
+                <div className="flex items-center gap-2 mt-6 pt-5 border-t border-gray-100 w-full justify-center">
+                  <button className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all rounded-2xl outline-none">
+                    <Edit2 size={16} />
+                  </button>
+                  <button className="p-3 text-gray-400 hover:text-green-600 hover:bg-green-50 transition-all rounded-2xl outline-none">
+                     <Share2 size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(spotlight.id)} className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all rounded-2xl outline-none">
+                     <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))}
