@@ -31,6 +31,9 @@ interface Registration {
   is_membership_active: boolean | null;
   whatsapp_number: string | null;
   created_at: string;
+  day1_claimed: boolean;
+  day2_claimed: boolean;
+  day3_claimed: boolean;
 }
 
 function RegistrationsContent() {
@@ -61,6 +64,34 @@ function RegistrationsContent() {
       setTimeout(() => {
         setIsRefreshing(false);
       }, 600);
+    }
+  };
+
+  const handleClaimChange = async (reg: Registration, dayNum: number) => {
+    const updatedFields = {
+      id: reg.id,
+      day1_claimed: dayNum === 1 ? true : reg.day1_claimed,
+      day2_claimed: dayNum === 2 ? true : reg.day2_claimed,
+      day3_claimed: dayNum === 3 ? true : reg.day3_claimed,
+    };
+
+    // Optimistic UI update
+    setRegistrations((prev) =>
+      prev.map((r) => (r.id === reg.id ? { ...r, ...updatedFields } : r))
+    );
+
+    try {
+      const res = await fetch("/api/events/registrations", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedFields),
+      });
+
+      if (!res.ok) {
+        fetchRegistrations();
+      }
+    } catch {
+      fetchRegistrations();
     }
   };
 
@@ -121,6 +152,9 @@ function RegistrationsContent() {
       "SPE Member",
       "Membership Active",
       "WhatsApp Number",
+      "Day 1 Claimed",
+      "Day 2 Claimed",
+      "Day 3 Claimed",
       "Registered Date",
       "Registered Time",
     ];
@@ -139,6 +173,9 @@ function RegistrationsContent() {
             : "No"
           : "N/A",
         `"${(r.whatsapp_number || "").replace(/"/g, '""')}"`,
+        r.day1_claimed ? "Yes" : "No",
+        r.day2_claimed ? "Yes" : "No",
+        r.day3_claimed ? "Yes" : "No",
         `"${date}"`,
         `"${time}"`,
       ];
@@ -328,6 +365,7 @@ function RegistrationsContent() {
                     <th className="px-8 py-7">Department</th>
                     <th className="px-8 py-7">Membership Status</th>
                     <th className="px-8 py-7">WhatsApp / Contact</th>
+                    <th className="px-8 py-7">Day Claims</th>
                     <th className="px-8 py-7">Registered Date & Time</th>
                   </tr>
                 </thead>
@@ -394,6 +432,47 @@ function RegistrationsContent() {
                               —
                             </span>
                           )}
+                        </td>
+
+                        {/* Day Claims */}
+                        <td className="px-8 py-6">
+                          <div className="flex gap-4 items-center">
+                            {/* Day 1 */}
+                            <label className="flex items-center gap-1.5 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={reg.day1_claimed}
+                                disabled={reg.day1_claimed}
+                                onChange={() => handleClaimChange(reg, 1)}
+                                className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${reg.day1_claimed ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D1</span>
+                            </label>
+
+                            {/* Day 2 */}
+                            <label className={`flex items-center gap-1.5 ${(!reg.day1_claimed || reg.day2_claimed) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={reg.day2_claimed}
+                                disabled={!reg.day1_claimed || reg.day2_claimed}
+                                onChange={() => handleClaimChange(reg, 2)}
+                                className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day2_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D2</span>
+                            </label>
+
+                            {/* Day 3 */}
+                            <label className={`flex items-center gap-1.5 ${(!reg.day2_claimed || reg.day3_claimed) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={reg.day3_claimed}
+                                disabled={!reg.day2_claimed || reg.day3_claimed}
+                                onChange={() => handleClaimChange(reg, 3)}
+                                className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day3_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D3</span>
+                            </label>
+                          </div>
                         </td>
 
                         {/* Date & Time */}
