@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { 
   Plus, 
   Search, 
@@ -19,7 +20,8 @@ import {
   Trash2,
   Edit2,
   Check,
-  Loader2
+  Loader2,
+  Users
 } from "lucide-react";
 import MediaPickerModal from "@/components/cms/MediaPickerModal";
 
@@ -249,13 +251,23 @@ export default function EventsPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-6 mt-6 border-t border-gray-50">
-                    <button onClick={() => openEditModal(event)} className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
-                      Edit Event <ChevronRight size={14} />
-                    </button>
-                    <div className="flex gap-2">
-                      <button onClick={() => openEditModal(event)} className="p-3 text-gray-300 hover:text-blue-600 transition-colors bg-gray-50 rounded-xl"><Edit2 size={14} /></button>
-                      <button onClick={() => handleDelete(event.id)} className="p-3 text-gray-300 hover:text-red-600 transition-colors bg-gray-50 rounded-xl"><Trash2 size={14} /></button>
+                  <div className="flex flex-col gap-3 pt-6 mt-6 border-t border-gray-50">
+                    <Link
+                      href={`/events/registrations?event=${encodeURIComponent(event.title)}`}
+                      className="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-black text-[10px] uppercase tracking-widest py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Users size={14} />
+                      View Registrations
+                    </Link>
+
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => openEditModal(event)} className="text-blue-600 font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:gap-3 transition-all">
+                        Edit Event <ChevronRight size={14} />
+                      </button>
+                      <div className="flex gap-2">
+                        <button onClick={() => openEditModal(event)} className="p-3 text-gray-300 hover:text-blue-600 transition-colors bg-gray-50 rounded-xl"><Edit2 size={14} /></button>
+                        <button onClick={() => handleDelete(event.id)} className="p-3 text-gray-300 hover:text-red-600 transition-colors bg-gray-50 rounded-xl"><Trash2 size={14} /></button>
+                      </div>
                     </div>
                   </div>
                 </div>
