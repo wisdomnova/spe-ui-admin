@@ -16,6 +16,7 @@ import {
   Clock3,
   Download,
   Building2,
+  RotateCw,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -24,7 +25,7 @@ interface Registration {
   id: string;
   event_name: string;
   name: string;
-  email: string;
+  matric_number: string;
   department: string;
   is_spe_member: boolean;
   is_membership_active: boolean | null;
@@ -72,7 +73,7 @@ function RegistrationsContent() {
       const query = searchQuery.toLowerCase();
       const matchesSearch =
         reg.name.toLowerCase().includes(query) ||
-        reg.email.toLowerCase().includes(query) ||
+        reg.matric_number.toLowerCase().includes(query) ||
         reg.department.toLowerCase().includes(query) ||
         (reg.whatsapp_number || "").toLowerCase().includes(query) ||
         reg.event_name.toLowerCase().includes(query);
@@ -109,7 +110,7 @@ function RegistrationsContent() {
 
     const headers = [
       "Name",
-      "Email",
+      "Matric Number",
       "Department",
       "Event",
       "SPE Member",
@@ -123,7 +124,7 @@ function RegistrationsContent() {
       const { date, time } = formatDate(r.created_at);
       return [
         `"${r.name.replace(/"/g, '""')}"`,
-        `"${r.email.replace(/"/g, '""')}"`,
+        `"${r.matric_number.replace(/"/g, '""')}"`,
         `"${r.department.replace(/"/g, '""')}"`,
         `"${r.event_name.replace(/"/g, '""')}"`,
         r.is_spe_member ? "Yes" : "No",
@@ -163,11 +164,11 @@ function RegistrationsContent() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-12">
+    <div className="p-4 sm:p-6 lg:p-12 w-full overflow-x-hidden">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-7xl mx-auto"
+        className="max-w-7xl mx-auto w-full overflow-hidden"
       >
         {/* Navigation & Header */}
         <div className="mb-8">
@@ -189,14 +190,23 @@ function RegistrationsContent() {
               </p>
             </div>
 
-            <button
-              onClick={exportToCSV}
-              disabled={filteredRegistrations.length === 0}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3 self-start md:self-auto"
-            >
-              <Download size={16} />
-              Export CSV
-            </button>
+            <div className="flex gap-4 self-start md:self-auto">
+              <button
+                onClick={fetchRegistrations}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3"
+              >
+                <RotateCw size={16} />
+                Refresh
+              </button>
+              <button
+                onClick={exportToCSV}
+                disabled={filteredRegistrations.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-8 py-4 rounded-[2rem] font-black text-xs uppercase tracking-widest transition-all flex items-center gap-3"
+              >
+                <Download size={16} />
+                Export CSV
+              </button>
+            </div>
           </header>
         </div>
 
@@ -254,7 +264,7 @@ function RegistrationsContent() {
             />
             <input
               type="text"
-              placeholder="Search attendees by name, email, department, or WhatsApp..."
+              placeholder="Search attendees by name, matric number, department, or WhatsApp..."
               className="w-full bg-gray-50 border-none rounded-3xl pl-14 pr-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/10 placeholder-gray-300 outline-none"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -298,9 +308,9 @@ function RegistrationsContent() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-[3rem] border border-gray-50 overflow-hidden">
+          <div className="bg-white rounded-[3rem] border border-gray-50 overflow-hidden w-full max-w-full">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full min-w-[1000px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] whitespace-nowrap">
                     <th className="px-8 py-7">Attendee</th>
@@ -319,15 +329,15 @@ function RegistrationsContent() {
                         key={reg.id}
                         className="group hover:bg-gray-50/50 transition-colors"
                       >
-                        {/* Name & Email */}
+                        {/* Name & Matric Number */}
                         <td className="px-8 py-6 whitespace-nowrap">
                           <div className="space-y-1">
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
                             </div>
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                              <Mail size={13} className="text-blue-500" />
-                              {reg.email}
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-400">
+                              <span className="text-blue-500 font-black">#</span>
+                              {reg.matric_number}
                             </div>
                           </div>
                         </td>
