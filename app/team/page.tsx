@@ -38,6 +38,7 @@ export default function TeamPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -61,22 +62,65 @@ export default function TeamPage() {
     } catch {} finally { setLoading(false); }
   };
 
-  const handleAdd = async () => {
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      role: "",
+      department: "Leadership",
+      email: "",
+      linkedin: "",
+      twitter: "",
+      image_url: ""
+    });
+    setEditingId(null);
+  };
+
+  const handleSave = async () => {
     if (!formData.name || !formData.role) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/team", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (res.ok) {
-        const newMember = await res.json();
-        setMembers([newMember, ...members]);
-        setShowAddModal(false);
-        setFormData({ name: "", role: "", department: "Leadership", email: "", linkedin: "", twitter: "", image_url: "" });
+      if (editingId) {
+        // PUT edit request
+        const res = await fetch(`/api/team/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (res.ok) {
+          const updatedMember = await res.json();
+          setMembers(members.map(m => m.id === editingId ? updatedMember : m));
+          setShowAddModal(false);
+          resetForm();
+        }
+      } else {
+        // POST add request
+        const res = await fetch("/api/team", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (res.ok) {
+          const newMember = await res.json();
+          setMembers([newMember, ...members]);
+          setShowAddModal(false);
+          resetForm();
+        }
       }
     } catch {} finally { setSubmitting(false); }
+  };
+
+  const openEditModal = (member: TeamMember) => {
+    setFormData({
+      name: member.name,
+      role: member.role,
+      department: member.department,
+      email: member.email || "",
+      linkedin: member.linkedin || "",
+      twitter: member.twitter || "",
+      image_url: member.image_url || ""
+    });
+    setEditingId(member.id);
+    setShowAddModal(true);
   };
 
   const handleDelete = async (id: string) => {
@@ -105,7 +149,7 @@ export default function TeamPage() {
             <h2 className="text-4xl font-black text-gray-900 tracking-tight">Main Chapter Team</h2>
             <p className="text-gray-500 font-medium">Add or manage members displayed on the public website.</p>
           </div>
-          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-200">
+          <button onClick={() => { resetForm(); setShowAddModal(true); }} className="flex items-center gap-3 bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-blue-200">
             <UserPlus size={18} />
             Add Team Member
           </button>
@@ -151,7 +195,7 @@ export default function TeamPage() {
               <div className="flex justify-between items-center pt-4 border-t border-gray-50">
                 <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">{member.department}</span>
                 <div className="flex gap-2">
-                  <button className="p-2 text-gray-300 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
+                  <button onClick={() => openEditModal(member)} className="p-2 text-gray-300 hover:text-blue-600 transition-colors"><Edit2 size={14} /></button>
                   <button onClick={() => handleDelete(member.id)} className="p-2 text-gray-300 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
                 </div>
               </div>
@@ -161,14 +205,14 @@ export default function TeamPage() {
         )}
       </motion.div>
 
-      {/* Add Modal */}
+      {/* Add/Edit Modal */}
       <AnimatePresence>
         {showAddModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-6">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-12 w-full max-w-xl shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex justify-between items-center mb-8">
-                <h3 className="text-2xl font-black text-gray-900">New Chapter Member</h3>
-                <button onClick={() => setShowAddModal(false)}><X size={24} className="text-gray-400" /></button>
+                <h3 className="text-2xl font-black text-gray-900">{editingId ? "Edit Team Member" : "New Chapter Member"}</h3>
+                <button onClick={() => { setShowAddModal(false); resetForm(); }}><X size={24} className="text-gray-400" /></button>
               </div>
               <div className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -181,18 +225,30 @@ export default function TeamPage() {
                     <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="e.g. President" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} />
                   </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Department</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Department</label>
                     <select className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}>
                       <option>Leadership</option>
                       <option>Engineering</option>
                       <option>Events</option>
                       <option>Communication</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Email</label>
+                    <input type="email" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="email@speui.org" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Email</label>
-                  <input type="email" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="email@speui.org" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">LinkedIn URL</label>
+                    <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="https://linkedin.com/in/..." value={formData.linkedin} onChange={e => setFormData({...formData, linkedin: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Twitter/X URL</label>
+                    <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm" placeholder="https://twitter.com/..." value={formData.twitter} onChange={e => setFormData({...formData, twitter: e.target.value})} />
+                  </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-black uppercase text-gray-400 mb-2 block">Member Image</label>
@@ -219,7 +275,7 @@ export default function TeamPage() {
                     <input type="text" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-3 font-bold text-sm mt-2 text-xs text-gray-400" value={formData.image_url} readOnly />
                   )}
                 </div>
-                <button onClick={handleAdd} disabled={submitting} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Member'}</button>
+                <button onClick={handleSave} disabled={submitting} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-200 disabled:opacity-50">{submitting ? 'Saving...' : 'Save Member'}</button>
               </div>
             </motion.div>
           </motion.div>
