@@ -34,6 +34,8 @@ interface Registration {
   day1_claimed: boolean;
   day2_claimed: boolean;
   day3_claimed: boolean;
+  access_code: string | null;
+  selected_days: string | null;
 }
 
 function RegistrationsContent() {
@@ -149,6 +151,8 @@ function RegistrationsContent() {
       "Email",
       "Department",
       "Event",
+      "Access Code",
+      "Selected Days",
       "SPE Member",
       "Membership Active",
       "WhatsApp Number",
@@ -166,6 +170,8 @@ function RegistrationsContent() {
         `"${r.email.replace(/"/g, '""')}"`,
         `"${r.department.replace(/"/g, '""')}"`,
         `"${r.event_name.replace(/"/g, '""')}"`,
+        `"${(r.access_code || "").replace(/"/g, '""')}"`,
+        `"${(r.selected_days || "").replace(/"/g, '""')}"`,
         r.is_spe_member ? "Yes" : "No",
         r.is_spe_member
           ? r.is_membership_active
@@ -383,18 +389,32 @@ function RegistrationsContent() {
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
                             </div>
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
-                              <Mail size={13} className="text-blue-500" />
-                              {reg.email}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs font-bold text-gray-400">
+                              <span className="flex items-center gap-1.5">
+                                <Mail size={13} className="text-blue-500" />
+                                {reg.email}
+                              </span>
+                              {reg.access_code && (
+                                <span className="inline-block bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-mono font-black text-[9px] uppercase tracking-wider w-fit">
+                                  Code: {reg.access_code}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>
 
                         {/* Department */}
                         <td className="px-8 py-6">
-                          <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                            <Building2 size={14} className="text-gray-300" />
-                            {reg.department}
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                              <Building2 size={14} className="text-gray-300" />
+                              {reg.department}
+                            </div>
+                            {reg.selected_days && (
+                              <div className="text-[10px] font-bold text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 w-fit uppercase tracking-widest text-[8px] font-black">
+                                {reg.selected_days}
+                              </div>
+                            )}
                           </div>
                         </td>
 
