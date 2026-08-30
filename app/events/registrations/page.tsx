@@ -118,7 +118,9 @@ function RegistrationsContent() {
         reg.email.toLowerCase().includes(query) ||
         reg.department.toLowerCase().includes(query) ||
         (reg.whatsapp_number || "").toLowerCase().includes(query) ||
-        reg.event_name.toLowerCase().includes(query);
+        reg.event_name.toLowerCase().includes(query) ||
+        (reg.access_code || "").toLowerCase().includes(query) ||
+        reg.id.toLowerCase().includes(query);
 
       return matchesEvent && matchesSearch;
     });
@@ -326,7 +328,7 @@ function RegistrationsContent() {
             />
             <input
               type="text"
-              placeholder="Search attendees by name, email, department, or WhatsApp..."
+              placeholder="Search attendees by name, email, code, ticket ID, department..."
               className="w-full bg-gray-50 border-none rounded-3xl pl-14 pr-6 py-4 font-bold text-sm focus:ring-2 focus:ring-blue-500/10 placeholder-gray-300 outline-none"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
