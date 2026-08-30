@@ -376,7 +376,7 @@ function RegistrationsContent() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                  <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] whitespace-nowrap">
                     <th className="px-8 py-7">Attendee</th>
                     <th className="px-8 py-7">Department</th>
                     <th className="px-8 py-7">Membership Status</th>
@@ -391,7 +391,7 @@ function RegistrationsContent() {
                     return (
                       <tr
                         key={reg.id}
-                        className="group hover:bg-gray-50/50 transition-colors"
+                        className="group hover:bg-gray-50/50 transition-colors whitespace-nowrap"
                       >
                         {/* Name & Email */}
                         <td className="px-8 py-6">
