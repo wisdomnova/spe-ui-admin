@@ -378,10 +378,11 @@ function RegistrationsContent() {
                 <thead>
                   <tr className="border-b border-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] whitespace-nowrap">
                     <th className="px-8 py-7">Attendee</th>
+                    <th className="px-8 py-7">Access Code</th>
+                    <th className="px-8 py-7">Day Claims</th>
                     <th className="px-8 py-7">Department</th>
                     <th className="px-8 py-7">Membership Status</th>
                     <th className="px-8 py-7">WhatsApp / Contact</th>
-                    <th className="px-8 py-7">Day Claims</th>
                     <th className="px-8 py-7">Registered Date & Time</th>
                   </tr>
                 </thead>
@@ -399,63 +400,20 @@ function RegistrationsContent() {
                             <div className="font-black text-gray-950 text-sm">
                               {reg.name}
                             </div>
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-xs font-bold text-gray-400">
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-400">
                               <span className="flex items-center gap-1.5">
                                 <Mail size={13} className="text-blue-500" />
                                 {reg.email}
                               </span>
-                              {reg.access_code && (
-                                <span className="inline-block bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-mono font-black text-[9px] uppercase tracking-wider w-fit">
-                                  Code: {reg.access_code}
-                                </span>
-                              )}
                             </div>
                           </div>
                         </td>
 
-                        {/* Department */}
+                        {/* Access Code */}
                         <td className="px-8 py-6">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
-                              <Building2 size={14} className="text-gray-300" />
-                              {reg.department}
-                            </div>
-                            {reg.selected_days && (
-                              <div className="text-[10px] font-bold text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 w-fit uppercase tracking-widest text-[8px] font-black">
-                                {reg.selected_days}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Membership Status Badge */}
-                        <td className="px-8 py-6">
-                          {reg.is_spe_member ? (
-                            reg.is_membership_active ? (
-                              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-green-700 border-green-200 bg-green-50">
-                                <CheckCircle2 size={13} />
-                                Active
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-amber-700 border-amber-200 bg-amber-50">
-                                <XCircle size={13} />
-                                Inactive
-                              </span>
-                            )
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-blue-700 border-blue-200 bg-blue-50">
-                              <Clock3 size={13} />
-                              Waitlist Guest
-                            </span>
-                          )}
-                        </td>
-
-                        {/* WhatsApp Number or N/A */}
-                        <td className="px-8 py-6">
-                          {reg.whatsapp_number ? (
-                            <div className="flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50/60 px-3 py-1.5 rounded-xl border border-green-100 w-fit">
-                              <Phone size={13} />
-                              {reg.whatsapp_number}
+                          {reg.access_code ? (
+                            <div className="text-base font-black font-mono text-blue-600 tracking-wider">
+                              {reg.access_code}
                             </div>
                           ) : (
                             <span className="text-xs font-bold text-gray-300">
@@ -527,6 +485,57 @@ function RegistrationsContent() {
                               <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day5_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D5</span>
                             </label>
                           </div>
+                        </td>
+
+                        {/* Department */}
+                        <td className="px-8 py-6">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
+                              <Building2 size={14} className="text-gray-300" />
+                              {reg.department}
+                            </div>
+                            {reg.selected_days && (
+                              <div className="text-[10px] font-bold text-gray-400 bg-gray-50 border border-gray-100 rounded-lg px-2 py-1 w-fit uppercase tracking-widest text-[8px] font-black">
+                                {reg.selected_days}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Membership Status Badge */}
+                        <td className="px-8 py-6">
+                          {reg.is_spe_member ? (
+                            reg.is_membership_active ? (
+                              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-green-700 border-green-200 bg-green-50">
+                                <CheckCircle2 size={13} />
+                                Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-amber-700 border-amber-200 bg-amber-50">
+                                <XCircle size={13} />
+                                Inactive
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border text-blue-700 border-blue-200 bg-blue-50">
+                              <Clock3 size={13} />
+                              Waitlist Guest
+                            </span>
+                          )}
+                        </td>
+
+                        {/* WhatsApp Number or N/A */}
+                        <td className="px-8 py-6">
+                          {reg.whatsapp_number ? (
+                            <div className="flex items-center gap-2 text-xs font-bold text-green-700 bg-green-50/60 px-3 py-1.5 rounded-xl border border-green-100 w-fit">
+                              <Phone size={13} />
+                              {reg.whatsapp_number}
+                            </div>
+                          ) : (
+                            <span className="text-xs font-bold text-gray-300">
+                              —
+                            </span>
+                          )}
                         </td>
 
                         {/* Date & Time */}
