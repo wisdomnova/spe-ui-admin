@@ -59,7 +59,7 @@ export default function SidebarWrapper({ children }: { children: React.ReactNode
       </div>
 
       <main
-        className="flex-1 min-h-screen pt-14 lg:pt-0 transition-[margin] duration-300"
+        className="flex-1 min-h-screen pt-14 lg:pt-0 transition-[margin] duration-300 w-full max-w-full overflow-x-hidden"
         style={{ marginLeft: undefined }}
       >
         {/* Use CSS classes for responsive margin that matches sidebar width */}

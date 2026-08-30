@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest) {
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, day1_claimed, day2_claimed, day3_claimed } = body;
+    const { id, day1_claimed, day2_claimed, day3_claimed, day4_claimed, day5_claimed } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Missing registration ID" }, { status: 400 });
@@ -52,6 +52,8 @@ export async function PUT(req: NextRequest) {
         day1_claimed: day1_claimed ?? false,
         day2_claimed: day2_claimed ?? false,
         day3_claimed: day3_claimed ?? false,
+        day4_claimed: day4_claimed ?? false,
+        day5_claimed: day5_claimed ?? false,
       })
       .eq("id", id)
       .select()

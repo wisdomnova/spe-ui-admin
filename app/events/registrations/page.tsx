@@ -34,6 +34,8 @@ interface Registration {
   day1_claimed: boolean;
   day2_claimed: boolean;
   day3_claimed: boolean;
+  day4_claimed: boolean;
+  day5_claimed: boolean;
   access_code: string | null;
   selected_days: string | null;
 }
@@ -75,6 +77,8 @@ function RegistrationsContent() {
       day1_claimed: dayNum === 1 ? true : reg.day1_claimed,
       day2_claimed: dayNum === 2 ? true : reg.day2_claimed,
       day3_claimed: dayNum === 3 ? true : reg.day3_claimed,
+      day4_claimed: dayNum === 4 ? true : reg.day4_claimed,
+      day5_claimed: dayNum === 5 ? true : reg.day5_claimed,
     };
 
     // Optimistic UI update
@@ -159,6 +163,8 @@ function RegistrationsContent() {
       "Day 1 Claimed",
       "Day 2 Claimed",
       "Day 3 Claimed",
+      "Day 4 Claimed",
+      "Day 5 Claimed",
       "Registered Date",
       "Registered Time",
     ];
@@ -182,6 +188,8 @@ function RegistrationsContent() {
         r.day1_claimed ? "Yes" : "No",
         r.day2_claimed ? "Yes" : "No",
         r.day3_claimed ? "Yes" : "No",
+        r.day4_claimed ? "Yes" : "No",
+        r.day5_claimed ? "Yes" : "No",
         `"${date}"`,
         `"${time}"`,
       ];
@@ -491,6 +499,30 @@ function RegistrationsContent() {
                                 className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
                               />
                               <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day3_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D3</span>
+                            </label>
+
+                            {/* Day 4 */}
+                            <label className={`flex items-center gap-1.5 ${(!reg.day3_claimed || reg.day4_claimed) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={reg.day4_claimed}
+                                disabled={!reg.day3_claimed || reg.day4_claimed}
+                                onChange={() => handleClaimChange(reg, 4)}
+                                className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day4_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D4</span>
+                            </label>
+
+                            {/* Day 5 */}
+                            <label className={`flex items-center gap-1.5 ${(!reg.day4_claimed || reg.day5_claimed) ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={reg.day5_claimed}
+                                disabled={!reg.day4_claimed || reg.day5_claimed}
+                                onChange={() => handleClaimChange(reg, 5)}
+                                className="rounded border-gray-200 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span className={`text-[10px] font-black uppercase tracking-wider ${(reg.day5_claimed) ? 'text-green-600 font-black' : 'text-gray-400 font-bold'}`}>D5</span>
                             </label>
                           </div>
                         </td>
